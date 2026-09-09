@@ -1,0 +1,22 @@
+{
+  "name": "attendance-bridge",
+  "version": "1.0.0",
+  "description": "Connect any attendance device by IP and port, sync punches to a Node.js server",
+  "main": "electron-main.js",
+  "scripts": {
+    "setup": "node setup.js",
+    "start": "electron .",
+    "server": "node server/index.js",
+    "dev": "node server/index.js"
+  },
+  "dependencies": {
+    "axios": "^1.6.5",
+    "cors": "^2.8.6",
+    "express": "^4.22.2",
+    "mysql": "^2.18.1",
+    "node-zklib": "^1.3.0"
+  },
+  "devDependencies": {
+    "electron": "^33.2.1"
+  }
+}

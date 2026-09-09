@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; connect-src 'self' http://127.0.0.1:* http://localhost:*; style-src 'self' 'unsafe-inline'; img-src 'self' data:;" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Attendance Bridge</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <!-- <img src="/asset/mPairLogo.png" alt="Logo" /> -->
+        <div>
+          <h1>Attendance Bridge</h1>
+          <p>Device IP + port. Server URL.</p>
+        </div>
+      </div>
+      <nav>
+        <button class="nav-btn active" data-view="dashboard">Dashboard</button>
+        <button class="nav-btn" data-view="devices">Devices</button>
+        <button class="nav-btn" data-view="attendance">Attendance</button>
+        <button class="nav-btn" data-view="settings">Settings</button>
+      </nav>
+      <div class="sidebar-status">
+        <div class="dot" id="serverDot"></div>
+        <span id="serverStatus">Starting local server...</span>
+      </div>
+    </aside>
+
+    <main>
+      <section id="view-dashboard" class="view active">
+        <header class="page-head">
+          <div>
+            <h2>Dashboard</h2>
+            <p>Enter device IP and port. Protocol is detected automatically. Logs are posted to your server URL with a fixed payload.</p>
+          </div>
+        </header>
+        <div class="stats">
+          <article><span>Devices</span><strong id="statDevices">0</strong></article>
+          <article><span>Records</span><strong id="statRecords">0</strong></article>
+          <article><span>Pending sync</span><strong id="statPending">0</strong></article>
+          <article><span>Events</span><strong id="statEvents">0</strong></article>
+        </div>
+        <div class="grid-2">
+          <div class="card">
+            <h3>Connect a device</h3>
+            <form id="quickForm" class="form">
+              <label>Device IP
+                <input name="ip" placeholder="192.168.1.201" required />
+              </label>
+              <label>Port
+                <input name="port" type="number" value="4370" required />
+              </label>
+              <label>Username
+                <input name="username" placeholder="optional" />
+              </label>
+              <label>Password
+                <input name="password" type="password" placeholder="optional" />
+              </label>
+              <label>Comm key
+                <input name="commKey" type="number" value="0" />
+              </label>
+              <div class="row">
+                <button type="submit">Test</button>
+                <button type="button" id="quickPull" class="ghost">Pull logs</button>
+              </div>
+              <p class="hint" id="quickResult">Leave username, password, and comm key empty if the device has none.</p>
+            </form>
+          </div>
+          <div class="card">
+            <h3>Activity</h3>
+            <ul class="events" id="eventList"></ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-devices" class="view">
+        <header class="page-head">
+          <div>
+            <h2>Devices</h2>
+            <p>IP, port, and optional credentials. Protocol is auto-detected.</p>
+          </div>
+        </header>
+        <div class="card">
+          <form id="deviceForm" class="form compact device-form">
+            <label>IP <input name="ip" placeholder="192.168.1.201" required /></label>
+            <label>Port <input name="port" type="number" value="4370" required /></label>
+            <label>Username <input name="username" placeholder="optional" /></label>
+            <label>Password <input name="password" type="password" placeholder="optional" /></label>
+            <label>Comm key <input name="commKey" type="number" value="0" /></label>
+            <button type="submit">Add device</button>
+          </form>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>IP</th>
+                <th>Port</th>
+                <th>User</th>
+                <th>Comm key</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="deviceTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="view-attendance" class="view">
+        <header class="page-head">
+          <div>
+            <h2>Attendance</h2>
+            <p>Pulled from devices, then posted to your server API.</p>
+          </div>
+          <button id="syncBtn">Sync now</button>
+        </header>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Emp ID</th>
+                <th>Name</th>
+                <th>In</th>
+                <th>Out</th>
+                <th>Total</th>
+                <th>Device</th>
+                <th>Synced</th>
+              </tr>
+            </thead>
+            <tbody id="attTable"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="view-settings" class="view">
+        <header class="page-head">
+          <div>
+            <h2>Settings</h2>
+            <p>Change only the server API URL. Payload fields stay the same.</p>
+          </div>
+        </header>
+        <div class="card">
+          <form id="settingsForm" class="form">
+            <label>Server API URL
+              <input name="syncUrl" placeholder="https://server.roohschool.edu.bd/server/postAttendence" />
+            </label>
+            <button type="submit">Save</button>
+          </form>
+          <p class="hint">
+            Every sync POSTs:
+            <code>empID</code>, <code>empName</code>, <code>date</code>, <code>inTime</code>, <code>outTime</code>, <code>total_time</code>
+          </p>
+        </div>
+      </section>
+    </main>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

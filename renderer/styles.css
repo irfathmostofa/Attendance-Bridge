@@ -1,0 +1,69 @@
+:root {
+  --bg: #0b1220;
+  --panel: #111a2e;
+  --card: #162036;
+  --line: #24324d;
+  --text: #e8eefc;
+  --muted: #93a0bb;
+  --accent: #3b82f6;
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --err: #ef4444;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; font-family: Segoe UI, sans-serif; background: var(--bg); color: var(--text); }
+button, input, select { font: inherit; }
+.app { display: grid; grid-template-columns: 250px 1fr; height: 100%; }
+.sidebar { background: var(--panel); border-right: 1px solid var(--line); padding: 20px 16px; display: flex; flex-direction: column; gap: 24px; }
+.brand { display: flex; gap: 12px; align-items: center; }
+.brand img { width: 42px; height: 42px; }
+.brand h1 { margin: 0; font-size: 16px; }
+.brand p { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+nav { display: flex; flex-direction: column; gap: 8px; }
+.nav-btn { background: transparent; border: 0; color: var(--muted); text-align: left; padding: 10px 12px; border-radius: 8px; cursor: pointer; }
+.nav-btn.active, .nav-btn:hover { background: #1d2b48; color: var(--text); }
+.sidebar-status { margin-top: auto; display: flex; gap: 8px; align-items: center; color: var(--muted); font-size: 12px; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--warn); }
+.dot.ok { background: var(--ok); }
+.dot.err { background: var(--err); }
+main { padding: 28px; overflow: auto; }
+.view { display: none; }
+.view.active { display: block; }
+.page-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+.page-head h2 { margin: 0 0 6px; }
+.page-head p { margin: 0; color: var(--muted); max-width: 720px; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+.stats article { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.stats span { color: var(--muted); font-size: 12px; }
+.stats strong { display: block; font-size: 28px; margin-top: 8px; }
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+.form { display: grid; gap: 10px; }
+.form.compact { grid-template-columns: repeat(4, 1fr); align-items: end; margin-bottom: 16px; }
+.form.compact.three { grid-template-columns: 1fr 160px auto; }
+.form.compact.device-form { grid-template-columns: 1.2fr 120px 1fr 1fr 120px auto; }
+label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+input, select { background: #0f1a30; border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 9px 10px; }
+button { background: var(--accent); color: white; border: 0; border-radius: 8px; padding: 10px 14px; cursor: pointer; }
+button.ghost { background: #24324d; }
+.row { display: flex; gap: 8px; }
+.hint { color: var(--muted); font-size: 13px; }
+.events { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow: auto; }
+.events li { border-bottom: 1px solid var(--line); padding: 8px 0; font-size: 13px; }
+.table-wrap { overflow: auto; background: var(--card); border: 1px solid var(--line); border-radius: 12px; }
+table { width: 100%; border-collapse: collapse; }
+th, td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; font-size: 13px; }
+th { color: var(--muted); font-weight: 600; }
+.check { display: flex; align-items: center; gap: 8px; }
+code { color: #93c5fd; }
+.badge { padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #24324d; }
+.badge.ok { background: #14532d; }
+.badge.no { background: #7f1d1d; }
+.actions button { margin-right: 6px; padding: 6px 10px; font-size: 12px; }
+.field-map { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+textarea { background: #0f1a30; border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 9px 10px; resize: vertical; font-family: Consolas, monospace; }
+.preview { background: #0f1a30; border: 1px solid var(--line); border-radius: 8px; padding: 12px; overflow: auto; color: #93c5fd; font-size: 12px; min-height: 80px; }
+h3 { margin: 8px 0 0; font-size: 15px; }
+.hidden { display: none !important; }
+.auth-box { display: grid; gap: 10px; }
