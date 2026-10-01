@@ -2,6 +2,7 @@ const state = {
   api: "",
   devices: [],
   attendance: [],
+  students: [],
   events: [],
   config: {}
 };
@@ -70,6 +71,21 @@ function renderAttendance() {
   `).join("") || `<tr><td colspan="8">No attendance records</td></tr>`;
 }
 
+function renderStudents() {
+  const body = document.getElementById("studentTable");
+  body.innerHTML = state.students.map((s) => `
+    <tr>
+      <td>${s.studentId || ""}</td>
+      <td>${s.name || ""}</td>
+      <td>${s.cardNo || ""}</td>
+      <td>${s.updatedAt || ""}</td>
+      <td class="actions">
+        <button class="ghost" data-act="del" data-id="${s.studentId}">Remove</button>
+      </td>
+    </tr>
+  `).join("") || `<tr><td colspan="5">No students yet</td></tr>`;
+}
+
 function renderEvents() {
   document.getElementById("eventList").innerHTML = state.events.slice(0, 20).map((e) => `
     <li><strong>${e.level}</strong> ${e.message}<br /><small>${e.time || ""}</small></li>
@@ -84,22 +100,30 @@ function renderStats() {
 }
 
 function fillSettings() {
-  document.getElementById("settingsForm").syncUrl.value = state.config.syncUrl || "";
+  const form = document.getElementById("settingsForm");
+  const map = state.config.studentFieldMap || {};
+  form.syncUrl.value = state.config.syncUrl || "";
+  form.studentIdField.value = map.studentId || "studentId";
+  form.studentNameField.value = map.name || "name";
+  form.studentCardField.value = map.cardNo || "cardNo";
 }
 
 async function refresh() {
-  const [devices, attendance, events, config] = await Promise.all([
+  const [devices, attendance, students, events, config] = await Promise.all([
     api("/api/devices"),
     api("/api/attendance"),
+    api("/api/students"),
     api("/api/events"),
     api("/api/config")
   ]);
   state.devices = devices;
   state.attendance = attendance;
+  state.students = students;
   state.events = events;
   state.config = config;
   renderDevices();
   renderAttendance();
+  renderStudents();
   renderEvents();
   renderStats();
   fillSettings();
@@ -180,9 +204,58 @@ document.getElementById("syncBtn").addEventListener("click", async () => {
   await refresh();
 });
 
+document.getElementById("studentForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const out = document.getElementById("studentResult");
+  out.textContent = "Saving...";
+  try {
+    const data = formData(e.target);
+    const result = await api("/api/students", {
+      method: "POST",
+      body: JSON.stringify({ studentId: data.studentId, name: data.name, cardNo: data.cardNo })
+    });
+    const push = result.push || {};
+    out.textContent = `Saved ${result.count}. Device write: ${push.ok ? "ok" : (push.message || "failed")}`;
+    e.target.reset();
+    await refresh();
+  } catch (err) {
+    out.textContent = err.message;
+  }
+});
+
+document.getElementById("pushStudentsBtn").addEventListener("click", async () => {
+  const out = document.getElementById("studentResult");
+  out.textContent = "Pushing to device...";
+  try {
+    const result = await api("/api/students/push", { method: "POST", body: "{}" });
+    out.textContent = "Pushed " + result.count + " student(s). " + (result.push && result.push.ok ? "Device OK" : "Device write failed");
+    await refresh();
+  } catch (err) {
+    out.textContent = err.message;
+  }
+});
+
+document.getElementById("studentTable").addEventListener("click", async (e) => {
+  const btn = e.target.closest("button");
+  if (!btn || btn.dataset.act !== "del") return;
+  await api("/api/students/" + encodeURIComponent(btn.dataset.id), { method: "DELETE" });
+  await refresh();
+});
+
 document.getElementById("settingsForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  await api("/api/config", { method: "PUT", body: JSON.stringify({ syncUrl: formData(e.target).syncUrl }) });
+  const data = formData(e.target);
+  await api("/api/config", {
+    method: "PUT",
+    body: JSON.stringify({
+      syncUrl: data.syncUrl,
+      studentFieldMap: {
+        studentId: data.studentIdField || "studentId",
+        name: data.studentNameField || "name",
+        cardNo: data.studentCardField || "cardNo"
+      }
+    })
+  });
   await refresh();
 });
 

@@ -5,6 +5,45 @@ const store = require("./store");
 const { handleIclock } = require("./protocols/iclock");
 const { testDevice, pullDevice } = require("./deviceManager");
 const { syncAttendance } = require("./sync");
+const { publicConfig, clearTokenCache } = require("./auth");
+const {
+  ingestStudents,
+  pushStoredStudents,
+  removeStudentEverywhere,
+  listDeviceUsers
+} = require("./students");
+
+const SYNC_CONFIG_KEYS = [
+  "syncUrl",
+  "syncMethod",
+  "syncHeaders",
+  "syncAuthHeader",
+  "syncSendArray",
+  "fieldMap",
+  "extraFields",
+  "authType",
+  "authApiKey",
+  "authHeaderName",
+  "authPrefix",
+  "authLoginUrl",
+  "authUsername",
+  "authPassword",
+  "authUsernameField",
+  "authPasswordField",
+  "authTokenPath",
+  "authTokenTtlMinutes",
+  "studentFieldMap"
+];
+
+function pickSyncConfig(body) {
+  const patch = {};
+  for (const key of SYNC_CONFIG_KEYS) {
+    if (body && Object.prototype.hasOwnProperty.call(body, key)) {
+      patch[key] = body[key];
+    }
+  }
+  return patch;
+}
 
 function createApp() {
   const app = express();
@@ -20,13 +59,20 @@ function createApp() {
   });
 
   app.get("/api/config", (_req, res) => {
-    res.json({ syncUrl: store.getConfig().syncUrl });
+    const config = publicConfig(store.getConfig());
+    const safe = {};
+    for (const key of SYNC_CONFIG_KEYS) safe[key] = config[key];
+    res.json(safe);
   });
 
   app.put("/api/config", (req, res) => {
-    const syncUrl = req.body && req.body.syncUrl;
-    const saved = store.saveConfig(syncUrl != null ? { syncUrl } : {});
-    res.json({ syncUrl: saved.syncUrl });
+    const patch = pickSyncConfig(req.body || {});
+    const saved = store.saveConfig(patch);
+    clearTokenCache();
+    const config = publicConfig(saved);
+    const safe = {};
+    for (const key of SYNC_CONFIG_KEYS) safe[key] = config[key];
+    res.json(safe);
   });
 
   app.get("/api/devices", (_req, res) => {
@@ -98,6 +144,27 @@ function createApp() {
     }
   });
 
+  app.get("/api/devices/:id/users", async (req, res) => {
+    const device = (store.getConfig().devices || []).find((d) => d.id === req.params.id);
+    if (!device) return res.status(404).json({ error: "Device not found" });
+    try {
+      res.json(await listDeviceUsers(device.id));
+    } catch (err) {
+      res.status(500).json({ ok: false, message: err.message });
+    }
+  });
+
+  app.post("/api/devices/:id/users", async (req, res) => {
+    const device = (store.getConfig().devices || []).find((d) => d.id === req.params.id);
+    if (!device) return res.status(404).json({ error: "Device not found" });
+    try {
+      const result = await ingestStudents(req.body, { deviceId: device.id, push: true });
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ ok: false, message: err.message });
+    }
+  });
+
   app.post("/api/devices/:id/pull", async (req, res) => {
     const device = (store.getConfig().devices || []).find((d) => d.id === req.params.id);
     if (!device) return res.status(404).json({ error: "Device not found" });
@@ -152,6 +219,53 @@ function createApp() {
 
   app.get("/api/events", (_req, res) => {
     res.json(store.getEvents());
+  });
+
+  app.get("/api/students", (_req, res) => {
+    res.json(store.getStudents());
+  });
+
+  app.post("/api/students", async (req, res) => {
+    try {
+      const push = req.body && req.body.push === false ? false : true;
+      const result = await ingestStudents(req.body, { push, deviceId: req.body && req.body.deviceId });
+      res.status(201).json(result);
+    } catch (err) {
+      res.status(400).json({ ok: false, message: err.message });
+    }
+  });
+
+  app.post("/api/erp/students", async (req, res) => {
+    try {
+      const result = await ingestStudents(req.body, {
+        push: req.body && req.body.push === false ? false : true,
+        deviceId: req.body && req.body.deviceId
+      });
+      res.status(201).json(result);
+    } catch (err) {
+      res.status(400).json({ ok: false, message: err.message });
+    }
+  });
+
+  app.post("/api/students/push", async (req, res) => {
+    try {
+      const result = await pushStoredStudents(req.body && req.body.deviceId);
+      res.json(result);
+    } catch (err) {
+      res.status(400).json({ ok: false, message: err.message });
+    }
+  });
+
+  app.delete("/api/students/:id", async (req, res) => {
+    try {
+      const result = await removeStudentEverywhere(req.params.id, {
+        device: req.query.device !== "false",
+        deviceId: req.query.deviceId
+      });
+      res.json(result);
+    } catch (err) {
+      res.status(404).json({ ok: false, message: err.message });
+    }
   });
 
   app.post("/api/attendance/push", (req, res) => {

@@ -21,6 +21,7 @@
         <button class="nav-btn active" data-view="dashboard">Dashboard</button>
         <button class="nav-btn" data-view="devices">Devices</button>
         <button class="nav-btn" data-view="attendance">Attendance</button>
+        <button class="nav-btn" data-view="students">Students</button>
         <button class="nav-btn" data-view="settings">Settings</button>
       </nav>
       <div class="sidebar-status">
@@ -34,7 +35,7 @@
         <header class="page-head">
           <div>
             <h2>Dashboard</h2>
-            <p>Enter device IP and port. Protocol is detected automatically. Logs are posted to your server URL with a fixed payload.</p>
+            <p>Enter device IP and port. Pull logs to your ERP, or push students from the ERP onto the device.</p>
           </div>
         </header>
         <div class="stats">
@@ -136,11 +137,44 @@
         </div>
       </section>
 
+      <section id="view-students" class="view">
+        <header class="page-head">
+          <div>
+            <h2>Students</h2>
+            <p>ERP sends student ID and RFID here. The bridge writes them onto the attendance device so a card scan can log attendance.</p>
+          </div>
+          <button id="pushStudentsBtn">Push to device</button>
+        </header>
+        <div class="card">
+          <form id="studentForm" class="form compact device-form">
+            <label>Student ID <input name="studentId" placeholder="1001" required /></label>
+            <label>Name <input name="name" placeholder="John Doe" /></label>
+            <label>RFID / card <input name="cardNo" placeholder="12345678" /></label>
+            <button type="submit">Save and push</button>
+          </form>
+          <p class="hint" id="studentResult">ERP can also POST to <code>/api/erp/students</code>.</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Student ID</th>
+                <th>Name</th>
+                <th>RFID / card</th>
+                <th>Updated</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="studentTable"></tbody>
+          </table>
+        </div>
+      </section>
+
       <section id="view-settings" class="view">
         <header class="page-head">
           <div>
             <h2>Settings</h2>
-            <p>Change only the server API URL. Payload fields stay the same.</p>
+            <p>Server API URL for attendance sync, plus ERP student field names.</p>
           </div>
         </header>
         <div class="card">
@@ -148,10 +182,19 @@
             <label>Server API URL
               <input name="syncUrl" placeholder="https://server.roohschool.edu.bd/server/postAttendence" />
             </label>
+            <label>ERP student ID field
+              <input name="studentIdField" placeholder="studentId" />
+            </label>
+            <label>ERP name field
+              <input name="studentNameField" placeholder="name" />
+            </label>
+            <label>ERP RFID / card field
+              <input name="studentCardField" placeholder="cardNo" />
+            </label>
             <button type="submit">Save</button>
           </form>
           <p class="hint">
-            Every sync POSTs:
+            Attendance sync default keys:
             <code>empID</code>, <code>empName</code>, <code>date</code>, <code>inTime</code>, <code>outTime</code>, <code>total_time</code>
           </p>
         </div>

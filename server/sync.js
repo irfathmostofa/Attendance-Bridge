@@ -1,21 +1,28 @@
 const axios = require("axios");
 const store = require("./store");
+const { buildAuthHeaders } = require("./auth");
 
-function fixedPayload(row) {
-  return {
-    empID: row.empID,
-    empName: row.empName,
-    date: row.date,
-    inTime: row.inTime,
-    outTime: row.outTime,
-    total_time: row.total_time
-  };
+const LOGICAL_FIELDS = ["empID", "empName", "date", "inTime", "outTime", "total_time"];
+
+function buildPayload(config, row) {
+  const map = config.fieldMap || {};
+  const payload = {};
+  for (const key of LOGICAL_FIELDS) {
+    const outKey = map[key];
+    if (outKey) payload[outKey] = row[key];
+  }
+  return { ...payload, ...(config.extraFields || {}) };
 }
 
 async function postOne(config, row) {
-  const payload = fixedPayload(row);
-  const res = await axios.post(config.syncUrl, payload, {
-    headers: { "Content-Type": "application/json" },
+  const payload = buildPayload(config, row);
+  const method = String(config.syncMethod || "POST").toLowerCase();
+  const headers = await buildAuthHeaders(config);
+  const res = await axios.request({
+    url: config.syncUrl,
+    method,
+    headers,
+    data: payload,
     timeout: 15000
   });
   return { response: res.data, payload };

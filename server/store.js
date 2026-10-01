@@ -5,6 +5,7 @@ const DATA_DIR = path.join(__dirname, "..", "data");
 const CONFIG_FILE = path.join(DATA_DIR, "config.json");
 const LOGS_FILE = path.join(DATA_DIR, "attendance.json");
 const EVENTS_FILE = path.join(DATA_DIR, "events.json");
+const STUDENTS_FILE = path.join(DATA_DIR, "students.json");
 
 const DEFAULT_CONFIG = {
   listenPort: 3780,
@@ -38,6 +39,11 @@ const DEFAULT_CONFIG = {
     total_time: "total_time"
   },
   extraFields: {},
+  studentFieldMap: {
+    studentId: "studentId",
+    name: "name",
+    cardNo: "cardNo"
+  },
   devices: []
 };
 
@@ -53,6 +59,9 @@ function ensure() {
   }
   if (!fs.existsSync(EVENTS_FILE)) {
     fs.writeFileSync(EVENTS_FILE, "[]");
+  }
+  if (!fs.existsSync(STUDENTS_FILE)) {
+    fs.writeFileSync(STUDENTS_FILE, "[]");
   }
 }
 
@@ -93,8 +102,46 @@ function saveConfig(next) {
   if (next.extraFields) {
     merged.extraFields = { ...current.extraFields, ...next.extraFields };
   }
+  if (next.studentFieldMap) {
+    merged.studentFieldMap = { ...DEFAULT_CONFIG.studentFieldMap, ...current.studentFieldMap, ...next.studentFieldMap };
+  }
   writeJson(CONFIG_FILE, merged);
   return merged;
+}
+
+function getStudents() {
+  return readJson(STUDENTS_FILE, []);
+}
+
+function saveStudents(rows) {
+  writeJson(STUDENTS_FILE, rows);
+  return rows;
+}
+
+function upsertStudents(rows) {
+  const existing = getStudents();
+  const index = new Map();
+  existing.forEach((row, i) => {
+    index.set(String(row.studentId), i);
+  });
+  (rows || []).forEach((row) => {
+    const id = String(row.studentId || "").trim();
+    if (!id) return;
+    const next = { ...row, studentId: id };
+    if (index.has(id)) {
+      existing[index.get(id)] = { ...existing[index.get(id)], ...next };
+    } else {
+      existing.push(next);
+      index.set(id, existing.length - 1);
+    }
+  });
+  existing.sort((a, b) => String(a.studentId).localeCompare(String(b.studentId), undefined, { numeric: true }));
+  return saveStudents(existing);
+}
+
+function removeStudent(studentId) {
+  const id = String(studentId);
+  return saveStudents(getStudents().filter((row) => String(row.studentId) !== id));
 }
 
 function getAttendance() {
@@ -147,5 +194,9 @@ module.exports = {
   saveAttendance,
   upsertAttendance,
   getEvents,
-  addEvent
+  addEvent,
+  getStudents,
+  saveStudents,
+  upsertStudents,
+  removeStudent
 };
