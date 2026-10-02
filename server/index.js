@@ -5,6 +5,7 @@ const store = require("./store");
 const { handleIclock } = require("./protocols/iclock");
 const { testDevice, pullDevice } = require("./deviceManager");
 const { syncAttendance } = require("./sync");
+const { buildSyncPayload, discoveredFields } = require("./fields");
 const { publicConfig, clearTokenCache } = require("./auth");
 const {
   ingestStudents,
@@ -21,6 +22,7 @@ const SYNC_CONFIG_KEYS = [
   "syncSendArray",
   "fieldMap",
   "extraFields",
+  "discoveredFields",
   "authType",
   "authApiKey",
   "authHeaderName",
@@ -215,6 +217,23 @@ function createApp() {
     } catch (err) {
       res.status(500).json({ ok: false, message: err.message });
     }
+  });
+
+  app.get("/api/sync/preview", (_req, res) => {
+    const config = store.getConfig();
+    const rows = store.getAttendance();
+    const sample = rows[0] || null;
+    const fields = Array.from(new Set([
+      ...(config.discoveredFields || []),
+      ...discoveredFields(rows)
+    ]));
+    res.json({
+      discoveredFields: fields,
+      fieldMap: config.fieldMap || {},
+      extraFields: config.extraFields || {},
+      sampleRow: sample,
+      samplePayload: sample ? buildSyncPayload(config, sample) : null
+    });
   });
 
   app.get("/api/events", (_req, res) => {

@@ -120,18 +120,7 @@
         </header>
         <div class="table-wrap">
           <table>
-            <thead>
-              <tr>
-                <th>Date</th>
-                <th>Emp ID</th>
-                <th>Name</th>
-                <th>In</th>
-                <th>Out</th>
-                <th>Total</th>
-                <th>Device</th>
-                <th>Synced</th>
-              </tr>
-            </thead>
+            <thead id="attHead"></thead>
             <tbody id="attTable"></tbody>
           </table>
         </div>
@@ -191,12 +180,17 @@
             <label>ERP RFID / card field
               <input name="studentCardField" placeholder="cardNo" />
             </label>
+            <div>
+              <p class="hint">Sync field map. Left is the device field, right is the API key. Leave blank to skip. Extra device fields appear after a pull.</p>
+              <div class="field-map" id="fieldMapBox"></div>
+            </div>
+            <label>Extra static fields (JSON)
+              <textarea name="extraFields" rows="3" placeholder='{"school":"rooh"}'></textarea>
+            </label>
             <button type="submit">Save</button>
           </form>
-          <p class="hint">
-            Attendance sync default keys:
-            <code>empID</code>, <code>empName</code>, <code>date</code>, <code>inTime</code>, <code>outTime</code>, <code>total_time</code>
-          </p>
+          <p class="hint">Sample payload posted to the server (built from the latest device record):</p>
+          <pre class="preview" id="payloadPreview">{}</pre>
         </div>
       </section>
     </main>

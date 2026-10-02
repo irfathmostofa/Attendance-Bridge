@@ -1,4 +1,5 @@
 const axios = require("axios");
+const { normalizePunches } = require("../fields");
 
 const COMMON_PATHS = [
   "/api/attendance",
@@ -29,34 +30,7 @@ function authHeaders(device) {
 }
 
 function normalizeRows(payload, device) {
-  let rows = [];
-  if (Array.isArray(payload)) rows = payload;
-  else if (Array.isArray(payload?.data)) rows = payload.data;
-  else if (Array.isArray(payload?.records)) rows = payload.records;
-  else if (Array.isArray(payload?.items)) rows = payload.items;
-  else if (payload && typeof payload === "object") rows = [payload];
-
-  return rows.map((row) => {
-    const empID = String(row.empID || row.emp_code || row.pin || row.userId || row.uid || row.employeeId || "");
-    const empName = row.empName || row.first_name
-      ? `${row.first_name || ""} ${row.last_name || ""}`.trim()
-      : row.name || empID;
-    const date = (row.date || row.att_date || row.recordTime || "").toString().slice(0, 10);
-    const time = row.time || row.inTime || row.first_punch || row.recordTime || "";
-    return {
-      empID,
-      empName,
-      date,
-      time: String(time).slice(11, 19) || String(time),
-      punchTime: row.punchTime || row.recordTime || `${date} ${time}`,
-      inTime: row.inTime || row.first_punch || null,
-      outTime: row.outTime || row.last_punch || null,
-      total_time: row.total_time || null,
-      deviceId: device.id,
-      deviceName: device.name,
-      source: "http"
-    };
-  }).filter((row) => row.empID);
+  return normalizePunches(payload, { ...device, protocol: "http" });
 }
 
 async function tryPath(device, path) {

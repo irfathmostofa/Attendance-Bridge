@@ -1,6 +1,7 @@
 const net = require("net");
 const ZKLib = require("node-zklib");
 const { COMMANDS } = require("node-zklib/constants");
+const { extraParams } = require("../fields");
 
 function tcpReachable(ip, port, timeoutMs) {
   return new Promise((resolve) => {
@@ -228,6 +229,7 @@ function mapZkLogs(logs, users, device) {
       date,
       time,
       punchTime: Number.isNaN(dt.getTime()) ? String(stamp) : dt.toISOString(),
+      params: extraParams(log),
       deviceId: device.id,
       deviceName: device.name,
       source: "zkteco"

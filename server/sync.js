@@ -1,17 +1,10 @@
 const axios = require("axios");
 const store = require("./store");
 const { buildAuthHeaders } = require("./auth");
-
-const LOGICAL_FIELDS = ["empID", "empName", "date", "inTime", "outTime", "total_time"];
+const { buildSyncPayload } = require("./fields");
 
 function buildPayload(config, row) {
-  const map = config.fieldMap || {};
-  const payload = {};
-  for (const key of LOGICAL_FIELDS) {
-    const outKey = map[key];
-    if (outKey) payload[outKey] = row[key];
-  }
-  return { ...payload, ...(config.extraFields || {}) };
+  return buildSyncPayload(config, row);
 }
 
 async function postOne(config, row) {

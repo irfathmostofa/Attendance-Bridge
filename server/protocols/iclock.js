@@ -1,4 +1,5 @@
 const store = require("../store");
+const { extraParams, discoveredFields, groupPunches } = require("../fields");
 
 function parseAttLog(body, serial) {
   const lines = String(body || "")
@@ -14,14 +15,19 @@ function parseAttLog(body, serial) {
     if (!empID || !stamp) return;
     const date = stamp.slice(0, 10);
     const time = stamp.slice(11, 19);
+    const extra = {};
+    if (parts[2] != null && parts[2] !== "") extra.status = parts[2];
+    if (parts[3] != null && parts[3] !== "") extra.verify = parts[3];
+    parts.slice(4).forEach((value, i) => {
+      if (value !== "") extra["col" + (i + 5)] = value;
+    });
     punches.push({
       empID,
       empName: empID,
       date,
       time,
       punchTime: stamp,
-      status: parts[2] || "0",
-      verify: parts[3] || "",
+      params: extraParams({ ...extra }),
       serial,
       source: "iclock"
     });
@@ -52,13 +58,14 @@ function handleIclock(app) {
         id: sn,
         name: sn
       };
-      const rows = punches.map((p) => ({
+      const rows = groupPunches(punches.map((p) => ({
         ...p,
         deviceId: device.id,
         deviceName: device.name || sn
-      }));
+      })));
       if (rows.length) {
         store.upsertAttendance(rows);
+        store.saveConfig({ discoveredFields: discoveredFields(rows) });
       }
       store.addEvent({
         type: "iclock",

@@ -55,8 +55,51 @@ function renderDevices() {
   `).join("") || `<tr><td colspan="5">No devices yet</td></tr>`;
 }
 
+const CORE_FIELDS = ["empID", "empName", "date", "inTime", "outTime", "total_time"];
+
+function extraFromRow(row) {
+  const params = row && row.params && typeof row.params === "object" ? row.params : {};
+  const skip = new Set(["punches", "synced", "syncedAt", "syncError", "id", "raw", "params", "deviceId", "deviceName", "source", "serial", "punchTime", "time", ...CORE_FIELDS]);
+  const extra = { ...params };
+  Object.entries(row || {}).forEach(([key, value]) => {
+    if (skip.has(key) || value == null || typeof value === "object") return;
+    if (extra[key] === undefined) extra[key] = value;
+  });
+  return extra;
+}
+
+function discoveredFieldList() {
+  const keys = new Set([...(state.config.discoveredFields || []), ...CORE_FIELDS]);
+  state.attendance.forEach((row) => {
+    Object.keys(extraFromRow(row)).forEach((key) => keys.add(key));
+  });
+  const extras = Array.from(keys).filter((key) => !CORE_FIELDS.includes(key)).sort();
+  return [...CORE_FIELDS, ...extras];
+}
+
+function cellValue(row, key) {
+  if (row[key] != null && row[key] !== "") return row[key];
+  const extra = extraFromRow(row);
+  if (extra[key] != null && extra[key] !== "") return extra[key];
+  return "";
+}
+
 function renderAttendance() {
+  const fields = discoveredFieldList();
+  const extra = fields.filter((key) => !CORE_FIELDS.includes(key));
+  document.getElementById("attHead").innerHTML = `<tr>
+    <th>Date</th>
+    <th>Emp ID</th>
+    <th>Name</th>
+    <th>In</th>
+    <th>Out</th>
+    <th>Total</th>
+    ${extra.map((key) => `<th>${key}</th>`).join("")}
+    <th>Device</th>
+    <th>Synced</th>
+  </tr>`;
   const body = document.getElementById("attTable");
+  const colspan = 8 + extra.length;
   body.innerHTML = state.attendance.slice(0, 300).map((r) => `
     <tr>
       <td>${r.date || ""}</td>
@@ -65,10 +108,11 @@ function renderAttendance() {
       <td>${r.inTime || ""}</td>
       <td>${r.outTime || ""}</td>
       <td>${r.total_time || ""}</td>
+      ${extra.map((key) => `<td>${cellValue(r, key)}</td>`).join("")}
       <td>${r.deviceName || r.ip || r.deviceId || ""}</td>
       <td><span class="badge ${r.synced ? "ok" : "no"}">${r.synced ? "yes" : "no"}</span></td>
     </tr>
-  `).join("") || `<tr><td colspan="8">No attendance records</td></tr>`;
+  `).join("") || `<tr><td colspan="${colspan}">No attendance records</td></tr>`;
 }
 
 function renderStudents() {
@@ -99,6 +143,17 @@ function renderStats() {
   document.getElementById("statEvents").textContent = state.events.length;
 }
 
+function fillFieldMap() {
+  const box = document.getElementById("fieldMapBox");
+  const map = state.config.fieldMap || {};
+  const fields = discoveredFieldList();
+  box.innerHTML = fields.map((key) => `
+    <label>${key}
+      <input data-src="${key}" value="${map[key] != null ? map[key] : key}" placeholder="${key}" />
+    </label>
+  `).join("");
+}
+
 function fillSettings() {
   const form = document.getElementById("settingsForm");
   const map = state.config.studentFieldMap || {};
@@ -106,6 +161,26 @@ function fillSettings() {
   form.studentIdField.value = map.studentId || "studentId";
   form.studentNameField.value = map.name || "name";
   form.studentCardField.value = map.cardNo || "cardNo";
+  form.extraFields.value = JSON.stringify(state.config.extraFields || {}, null, 2);
+  fillFieldMap();
+}
+
+function readFieldMap() {
+  const map = {};
+  document.querySelectorAll("#fieldMapBox input[data-src]").forEach((input) => {
+    map[input.dataset.src] = input.value.trim();
+  });
+  return map;
+}
+
+async function fillPreview() {
+  const el = document.getElementById("payloadPreview");
+  try {
+    const preview = await api("/api/sync/preview");
+    el.textContent = JSON.stringify(preview.samplePayload || {}, null, 2);
+  } catch (err) {
+    el.textContent = err.message;
+  }
 }
 
 async function refresh() {
@@ -127,6 +202,7 @@ async function refresh() {
   renderEvents();
   renderStats();
   fillSettings();
+  await fillPreview();
 }
 
 async function boot() {
@@ -245,10 +321,19 @@ document.getElementById("studentTable").addEventListener("click", async (e) => {
 document.getElementById("settingsForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const data = formData(e.target);
+  let extraFields = {};
+  try {
+    extraFields = data.extraFields ? JSON.parse(data.extraFields) : {};
+  } catch (err) {
+    alert("Extra fields must be valid JSON");
+    return;
+  }
   await api("/api/config", {
     method: "PUT",
     body: JSON.stringify({
       syncUrl: data.syncUrl,
+      fieldMap: readFieldMap(),
+      extraFields,
       studentFieldMap: {
         studentId: data.studentIdField || "studentId",
         name: data.studentNameField || "name",

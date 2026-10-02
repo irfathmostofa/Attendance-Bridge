@@ -39,6 +39,7 @@ const DEFAULT_CONFIG = {
     total_time: "total_time"
   },
   extraFields: {},
+  discoveredFields: ["empID", "empName", "date", "inTime", "outTime", "total_time"],
   studentFieldMap: {
     studentId: "studentId",
     name: "name",
@@ -105,6 +106,10 @@ function saveConfig(next) {
   if (next.studentFieldMap) {
     merged.studentFieldMap = { ...DEFAULT_CONFIG.studentFieldMap, ...current.studentFieldMap, ...next.studentFieldMap };
   }
+  if (next.discoveredFields) {
+    const seen = new Set([...(current.discoveredFields || []), ...next.discoveredFields]);
+    merged.discoveredFields = Array.from(seen);
+  }
   writeJson(CONFIG_FILE, merged);
   return merged;
 }
@@ -162,7 +167,12 @@ function upsertAttendance(rows) {
   rows.forEach((row) => {
     const key = `${row.empID}|${row.date}|${row.inTime}|${row.deviceId || ""}`;
     if (index.has(key)) {
-      existing[index.get(key)] = { ...existing[index.get(key)], ...row };
+      const prev = existing[index.get(key)];
+      existing[index.get(key)] = {
+        ...prev,
+        ...row,
+        params: { ...(prev.params || {}), ...(row.params || {}) }
+      };
     } else {
       existing.push(row);
     }

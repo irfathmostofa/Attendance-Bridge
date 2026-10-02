@@ -2,48 +2,7 @@ const { connectZk, testZk } = require("./protocols/zk");
 const { connectHttp, testHttp } = require("./protocols/http");
 const { testTcp, connectTcp } = require("./protocols/tcp");
 const store = require("./store");
-
-function groupPunches(punches) {
-  const map = new Map();
-  punches.forEach((p) => {
-    const key = `${p.empID}|${p.date}|${p.deviceId || ""}`;
-    if (!map.has(key)) {
-      map.set(key, {
-        empID: p.empID,
-        empName: p.empName,
-        date: p.date,
-        inTime: p.time || p.inTime || null,
-        outTime: p.outTime || null,
-        total_time: p.total_time || null,
-        punches: [],
-        deviceId: p.deviceId,
-        deviceName: p.deviceName,
-        source: p.source,
-        synced: false
-      });
-    }
-    const row = map.get(key);
-    const t = p.time || p.inTime;
-    if (t) row.punches.push(t);
-    if (!row.empName && p.empName) row.empName = p.empName;
-  });
-  return Array.from(map.values()).map((row) => {
-    const times = row.punches.filter(Boolean).sort();
-    row.inTime = times[0] || row.inTime;
-    row.outTime = times.length > 1 ? times[times.length - 1] : row.outTime;
-    if (row.inTime && row.outTime) {
-      const a = new Date(`1970-01-01T${String(row.inTime).slice(0, 8)}`);
-      const b = new Date(`1970-01-01T${String(row.outTime).slice(0, 8)}`);
-      if (!Number.isNaN(a.getTime()) && !Number.isNaN(b.getTime()) && b > a) {
-        const mins = Math.round((b - a) / 60000);
-        const h = String(Math.floor(mins / 60)).padStart(2, "0");
-        const m = String(mins % 60).padStart(2, "0");
-        row.total_time = `${h}:${m}`;
-      }
-    }
-    return row;
-  });
-}
+const { discoveredFields, groupPunches } = require("./fields");
 
 async function autoDetect(device) {
   const protocol = (device.protocol || "auto").toLowerCase();
@@ -111,6 +70,7 @@ async function pullDevice(device) {
   const grouped = groupPunches(result.punches || []);
   if (grouped.length) {
     store.upsertAttendance(grouped);
+    store.saveConfig({ discoveredFields: discoveredFields(grouped) });
   }
   store.addEvent({
     type: "pull",
