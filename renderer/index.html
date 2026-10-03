@@ -22,6 +22,7 @@
         <button class="nav-btn" data-view="devices">Devices</button>
         <button class="nav-btn" data-view="attendance">Attendance</button>
         <button class="nav-btn" data-view="students">Students</button>
+        <button class="nav-btn" data-view="backup">Backup</button>
         <button class="nav-btn" data-view="settings">Settings</button>
       </nav>
       <div class="sidebar-status">
@@ -192,6 +193,73 @@
           <p class="hint">Sample payload posted to the server (built from the latest device record):</p>
           <pre class="preview" id="payloadPreview">{}</pre>
         </div>
+      </section>
+
+      <section id="view-backup" class="view">
+        <header class="page-head">
+          <div>
+            <h2>Backup</h2>
+            <p>Save config, attendance, and students. Auto backups keep 30 days by default.</p>
+          </div>
+          <div class="row">
+            <button id="backupNowBtn">Backup now</button>
+            <button id="exportJsonBtn" class="ghost">Export JSON</button>
+            <button id="exportCsvBtn" class="ghost">Export CSV</button>
+          </div>
+        </header>
+        <div class="grid-2">
+          <div class="card">
+            <h3>Backup settings</h3>
+            <form id="backupForm" class="form">
+              <label class="check">
+                <input type="checkbox" name="autoBackup" />
+                Auto backup
+              </label>
+              <label>Keep backups (days)
+                <input name="backupRetainDays" type="number" min="1" value="30" />
+              </label>
+              <label>Backup every (hours)
+                <input name="backupIntervalHours" type="number" min="1" value="24" />
+              </label>
+              <label class="check">
+                <input type="checkbox" name="minimizeToTray" />
+                Minimize to tray
+              </label>
+              <label class="check">
+                <input type="checkbox" name="startMinimized" />
+                Start minimized
+              </label>
+              <button type="submit">Save backup settings</button>
+            </form>
+            <p class="hint" id="backupHint">Backups are stored in the app data folder.</p>
+          </div>
+          <div class="card">
+            <h3>Restore</h3>
+            <p class="hint">Pick a listed backup or restore a JSON file. This replaces current data.</p>
+            <div class="row">
+              <button type="button" id="restoreSelectedBtn">Restore selected</button>
+              <button type="button" id="restoreFileBtn" class="ghost">Restore from file</button>
+              <button type="button" id="openBackupDirBtn" class="ghost">Open folder</button>
+            </div>
+            <p class="hint" id="backupResult"></p>
+          </div>
+        </div>
+        <div class="table-wrap" style="margin-top:16px">
+          <table>
+            <thead>
+              <tr>
+                <th></th>
+                <th>Created</th>
+                <th>File</th>
+                <th>Attendance</th>
+                <th>Students</th>
+                <th>Devices</th>
+              </tr>
+            </thead>
+            <tbody id="backupTable"></tbody>
+          </table>
+        </div>
+        <input id="restoreFileInput" type="file" accept="application/json,.json" class="hidden" />
       </section>
     </main>
   </div>

@@ -118,16 +118,19 @@ function writeDataFiles() {
   }
   const att = path.join(dataDir, "attendance.json");
   const events = path.join(dataDir, "events.json");
+  const students = path.join(dataDir, "students.json");
   if (!fs.existsSync(att)) fs.writeFileSync(att, "[]");
   if (!fs.existsSync(events)) fs.writeFileSync(events, "[]");
+  if (!fs.existsSync(students)) fs.writeFileSync(students, "[]");
   log("Data folder ready at " + dataDir);
 }
 
 function printDone() {
   log("All essential software is installed.");
   log("Desktop app:  npm start");
-  log("Web / API:    npm run server");
   log("Windows:      start.bat");
+  log("Packaged app: npm run dist");
+  log("API only:     npm run server");
 }
 
 async function main() {

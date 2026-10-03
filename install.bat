@@ -23,7 +23,7 @@ if errorlevel 1 (
 )
 
 echo Installing Electron...
-call npm install electron@33.2.1 --save --no-fund --no-audit
+call npm install electron@33.2.1 --save-dev --no-fund --no-audit
 if errorlevel 1 (
   echo Local Electron install failed. Trying global...
   call npm install -g electron@33.2.1 --no-fund --no-audit
@@ -40,6 +40,7 @@ if not exist "data\events.json" echo [] > data\events.json
 echo.
 echo Done. Essential software is installed.
 echo Start desktop:  npm start
-echo Start API:      npm run server
+echo Build installer: npm run dist
+echo Start API only: npm run server
 echo Or double-click start.bat
 pause

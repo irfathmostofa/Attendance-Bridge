@@ -1,11 +1,27 @@
 const fs = require("fs");
 const path = require("path");
 
-const DATA_DIR = path.join(__dirname, "..", "data");
-const CONFIG_FILE = path.join(DATA_DIR, "config.json");
-const LOGS_FILE = path.join(DATA_DIR, "attendance.json");
-const EVENTS_FILE = path.join(DATA_DIR, "events.json");
-const STUDENTS_FILE = path.join(DATA_DIR, "students.json");
+let DATA_DIR = path.join(__dirname, "..", "data");
+let CONFIG_FILE = path.join(DATA_DIR, "config.json");
+let LOGS_FILE = path.join(DATA_DIR, "attendance.json");
+let EVENTS_FILE = path.join(DATA_DIR, "events.json");
+let STUDENTS_FILE = path.join(DATA_DIR, "students.json");
+
+function setDataDir(dir) {
+  if (!dir) return DATA_DIR;
+  DATA_DIR = dir;
+  CONFIG_FILE = path.join(DATA_DIR, "config.json");
+  LOGS_FILE = path.join(DATA_DIR, "attendance.json");
+  EVENTS_FILE = path.join(DATA_DIR, "events.json");
+  STUDENTS_FILE = path.join(DATA_DIR, "students.json");
+  ensure();
+  return DATA_DIR;
+}
+
+function getDataDir() {
+  ensure();
+  return DATA_DIR;
+}
 
 const DEFAULT_CONFIG = {
   listenPort: 3780,
@@ -45,6 +61,12 @@ const DEFAULT_CONFIG = {
     name: "name",
     cardNo: "cardNo"
   },
+  autoBackup: true,
+  backupRetainDays: 30,
+  backupIntervalHours: 24,
+  lastBackupAt: "",
+  minimizeToTray: true,
+  startMinimized: false,
   devices: []
 };
 
@@ -196,8 +218,27 @@ function addEvent(event) {
   return events[0];
 }
 
+function restoreSnapshot(data) {
+  ensure();
+  if (data.config && typeof data.config === "object") {
+    writeJson(CONFIG_FILE, { ...DEFAULT_CONFIG, ...data.config });
+  }
+  if (Array.isArray(data.attendance)) writeJson(LOGS_FILE, data.attendance);
+  if (Array.isArray(data.students)) writeJson(STUDENTS_FILE, data.students);
+  if (Array.isArray(data.events)) writeJson(EVENTS_FILE, data.events);
+  return {
+    config: getConfig(),
+    attendance: getAttendance(),
+    students: getStudents(),
+    events: getEvents()
+  };
+}
+
 module.exports = {
-  DATA_DIR,
+  get DATA_DIR() { return DATA_DIR; },
+  setDataDir,
+  getDataDir,
+  DEFAULT_CONFIG,
   getConfig,
   saveConfig,
   getAttendance,
@@ -208,5 +249,6 @@ module.exports = {
   getStudents,
   saveStudents,
   upsertStudents,
-  removeStudent
+  removeStudent,
+  restoreSnapshot
 };

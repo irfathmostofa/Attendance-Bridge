@@ -4,7 +4,10 @@ const state = {
   attendance: [],
   students: [],
   events: [],
-  config: {}
+  backups: [],
+  backupMeta: {},
+  config: {},
+  electron: false
 };
 
 async function api(path, options) {
@@ -163,6 +166,51 @@ function fillSettings() {
   form.studentCardField.value = map.cardNo || "cardNo";
   form.extraFields.value = JSON.stringify(state.config.extraFields || {}, null, 2);
   fillFieldMap();
+  fillBackupForm();
+}
+
+function fillBackupForm() {
+  const form = document.getElementById("backupForm");
+  if (!form) return;
+  form.autoBackup.checked = state.config.autoBackup !== false;
+  form.backupRetainDays.value = state.config.backupRetainDays || 30;
+  form.backupIntervalHours.value = state.config.backupIntervalHours || 24;
+  form.minimizeToTray.checked = state.config.minimizeToTray !== false;
+  form.startMinimized.checked = !!state.config.startMinimized;
+  const hint = document.getElementById("backupHint");
+  const dir = state.backupMeta.dir || "";
+  hint.textContent = dir
+    ? "Backups folder: " + dir + (state.config.lastBackupAt ? " | last: " + state.config.lastBackupAt : "")
+    : "Backups are stored in the app data folder.";
+}
+
+function renderBackups() {
+  const body = document.getElementById("backupTable");
+  if (!body) return;
+  body.innerHTML = (state.backups || []).map((b, i) => `
+    <tr>
+      <td><input type="radio" name="backupPick" value="${b.name}" ${i === 0 ? "checked" : ""} /></td>
+      <td>${b.createdAt || ""}</td>
+      <td>${b.name || ""}</td>
+      <td>${b.counts && b.counts.attendance != null ? b.counts.attendance : "-"}</td>
+      <td>${b.counts && b.counts.students != null ? b.counts.students : "-"}</td>
+      <td>${b.counts && b.counts.devices != null ? b.counts.devices : "-"}</td>
+    </tr>
+  `).join("") || `<tr><td colspan="6">No backups yet</td></tr>`;
+}
+
+function selectedBackupFile() {
+  const picked = document.querySelector("input[name=backupPick]:checked");
+  return picked ? picked.value : "";
+}
+
+function downloadUrl(path) {
+  const a = document.createElement("a");
+  a.href = state.api + path;
+  a.download = "";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 function readFieldMap() {
@@ -184,23 +232,27 @@ async function fillPreview() {
 }
 
 async function refresh() {
-  const [devices, attendance, students, events, config] = await Promise.all([
+  const [devices, attendance, students, events, config, backups] = await Promise.all([
     api("/api/devices"),
     api("/api/attendance"),
     api("/api/students"),
     api("/api/events"),
-    api("/api/config")
+    api("/api/config"),
+    api("/api/backups")
   ]);
   state.devices = devices;
   state.attendance = attendance;
   state.students = students;
   state.events = events;
   state.config = config;
+  state.backups = backups.items || [];
+  state.backupMeta = backups;
   renderDevices();
   renderAttendance();
   renderStudents();
   renderEvents();
   renderStats();
+  renderBackups();
   fillSettings();
   await fillPreview();
 }
@@ -208,6 +260,7 @@ async function refresh() {
 async function boot() {
   const info = await (window.bridge ? window.bridge.getApiInfo() : Promise.resolve({ url: "" }));
   state.api = info.url || "";
+  state.electron = !!(window.bridge && info.electron);
   try {
     await api("/api/health");
     document.getElementById("serverDot").className = "dot ok";
@@ -342,6 +395,109 @@ document.getElementById("settingsForm").addEventListener("submit", async (e) => 
     })
   });
   await refresh();
+});
+
+document.getElementById("backupForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const form = e.target;
+  await api("/api/config", {
+    method: "PUT",
+    body: JSON.stringify({
+      autoBackup: form.autoBackup.checked,
+      backupRetainDays: Number(form.backupRetainDays.value) || 30,
+      backupIntervalHours: Number(form.backupIntervalHours.value) || 24,
+      minimizeToTray: form.minimizeToTray.checked,
+      startMinimized: form.startMinimized.checked
+    })
+  });
+  document.getElementById("backupResult").textContent = "Backup settings saved";
+  await refresh();
+});
+
+document.getElementById("backupNowBtn").addEventListener("click", async () => {
+  const out = document.getElementById("backupResult");
+  out.textContent = "Saving backup...";
+  try {
+    const result = window.bridge && window.bridge.backupNow
+      ? await window.bridge.backupNow("manual")
+      : await api("/api/backups", { method: "POST", body: JSON.stringify({ reason: "manual" }) });
+    out.textContent = "Saved " + (result.name || result.file || "backup");
+    await refresh();
+  } catch (err) {
+    out.textContent = err.message;
+  }
+});
+
+document.getElementById("exportJsonBtn").addEventListener("click", async () => {
+  if (window.bridge && window.bridge.exportJson) {
+    await window.bridge.exportJson();
+    return;
+  }
+  downloadUrl("/api/backups/export.json");
+});
+
+document.getElementById("exportCsvBtn").addEventListener("click", async () => {
+  if (window.bridge && window.bridge.exportCsv) {
+    await window.bridge.exportCsv();
+    return;
+  }
+  downloadUrl("/api/backups/export.csv");
+});
+
+document.getElementById("restoreSelectedBtn").addEventListener("click", async () => {
+  const file = selectedBackupFile();
+  const out = document.getElementById("backupResult");
+  if (!file) {
+    out.textContent = "Select a backup first";
+    return;
+  }
+  if (!confirm("Replace current data with this backup?")) return;
+  out.textContent = "Restoring...";
+  try {
+    const result = await api("/api/backups/restore", { method: "POST", body: JSON.stringify({ name: file }) });
+    out.textContent = "Restored " + (result.name || "backup");
+    await refresh();
+  } catch (err) {
+    out.textContent = err.message;
+  }
+});
+
+document.getElementById("restoreFileBtn").addEventListener("click", async () => {
+  if (window.bridge && window.bridge.restoreDialog) {
+    const result = await window.bridge.restoreDialog();
+    if (!result || result.canceled) return;
+    document.getElementById("backupResult").textContent = "Restored " + (result.name || "backup");
+    await refresh();
+    return;
+  }
+  document.getElementById("restoreFileInput").click();
+});
+
+document.getElementById("restoreFileInput").addEventListener("change", async (e) => {
+  const file = e.target.files && e.target.files[0];
+  e.target.value = "";
+  if (!file) return;
+  if (!confirm("Replace current data with " + file.name + "?")) return;
+  const out = document.getElementById("backupResult");
+  out.textContent = "Restoring...";
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+    const result = await api("/api/backups/restore", { method: "POST", body: JSON.stringify(data) });
+    out.textContent = "Restored " + (result.name || file.name);
+    await refresh();
+  } catch (err) {
+    out.textContent = err.message;
+  }
+});
+
+document.getElementById("openBackupDirBtn").addEventListener("click", async () => {
+  const dir = state.backupMeta.dir;
+  if (window.bridge && window.bridge.openPath && dir) {
+    await window.bridge.openPath(dir);
+    return;
+  }
+  document.getElementById("backupResult").textContent = dir || "Backup folder not available in browser mode";
 });
 
 boot();

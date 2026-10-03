@@ -55,7 +55,8 @@ button.ghost { background: #24324d; }
 table { width: 100%; border-collapse: collapse; }
 th, td { padding: 10px 12px; border-bottom: 1px solid var(--line); text-align: left; font-size: 13px; }
 th { color: var(--muted); font-weight: 600; }
-.check { display: flex; align-items: center; gap: 8px; }
+.check { display: flex; flex-direction: row; align-items: center; gap: 8px; }
+.check input { width: auto; }
 code { color: #93c5fd; }
 .badge { padding: 2px 8px; border-radius: 999px; font-size: 12px; background: #24324d; }
 .badge.ok { background: #14532d; }

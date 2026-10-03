@@ -7,6 +7,7 @@ const { testDevice, pullDevice } = require("./deviceManager");
 const { syncAttendance } = require("./sync");
 const { buildSyncPayload, discoveredFields } = require("./fields");
 const { publicConfig, clearTokenCache } = require("./auth");
+const backup = require("./backup");
 const {
   ingestStudents,
   pushStoredStudents,
@@ -34,7 +35,13 @@ const SYNC_CONFIG_KEYS = [
   "authPasswordField",
   "authTokenPath",
   "authTokenTtlMinutes",
-  "studentFieldMap"
+  "studentFieldMap",
+  "autoBackup",
+  "backupRetainDays",
+  "backupIntervalHours",
+  "lastBackupAt",
+  "minimizeToTray",
+  "startMinimized"
 ];
 
 function pickSyncConfig(body) {
@@ -293,6 +300,57 @@ function createApp() {
     res.json({ ok: true, count: saved.length });
   });
 
+  app.get("/api/backups", (_req, res) => {
+    res.json({
+      dir: backup.backupDir(),
+      dataDir: store.getDataDir(),
+      lastBackupAt: store.getConfig().lastBackupAt || "",
+      autoBackup: !!store.getConfig().autoBackup,
+      backupRetainDays: Number(store.getConfig().backupRetainDays) || 30,
+      items: backup.listBackups()
+    });
+  });
+
+  app.post("/api/backups", (req, res) => {
+    try {
+      res.status(201).json(backup.createBackup({ reason: (req.body && req.body.reason) || "manual" }));
+    } catch (err) {
+      res.status(500).json({ ok: false, message: err.message });
+    }
+  });
+
+  app.post("/api/backups/restore", (req, res) => {
+    try {
+      const body = req.body || {};
+      if (body.name || body.file) {
+        const dir = path.resolve(backup.backupDir());
+        const target = path.resolve(dir, path.basename(body.name || body.file));
+        const rel = path.relative(dir, target);
+        if (!rel || rel.startsWith("..") || path.isAbsolute(rel)) {
+          return res.status(400).json({ ok: false, message: "Backup file must be in the backups folder" });
+        }
+        return res.json(backup.restoreBackup(target));
+      }
+      if (body.config || body.attendance) {
+        return res.json(backup.restoreFromObject(body));
+      }
+      res.status(400).json({ ok: false, message: "Send backup name or backup JSON" });
+    } catch (err) {
+      res.status(400).json({ ok: false, message: err.message });
+    }
+  });
+
+  app.get("/api/backups/export.json", (_req, res) => {
+    res.setHeader("Content-Disposition", "attachment; filename=attendance-bridge-backup.json");
+    res.json(backup.snapshot());
+  });
+
+  app.get("/api/backups/export.csv", (_req, res) => {
+    res.setHeader("Content-Type", "text/csv");
+    res.setHeader("Content-Disposition", "attachment; filename=attendance.csv");
+    res.send(backup.attendanceCsv());
+  });
+
   app.use("/asset", express.static(path.join(__dirname, "..", "asset")));
   app.use(express.static(path.join(__dirname, "..", "renderer")));
   app.get("/", (_req, res) => {
@@ -306,6 +364,7 @@ function startServer(port) {
   const config = store.getConfig();
   const listenPort = Number(port || config.listenPort || 3780);
   const app = createApp();
+  backup.startBackupScheduler();
   return new Promise((resolve, reject) => {
     const server = app.listen(listenPort, "0.0.0.0", () => {
       store.addEvent({
