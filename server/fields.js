@@ -4,14 +4,15 @@ const FIELD_ALIASES = {
   empID: [
     "empID", "empId", "emp_id", "emp_code", "empCode", "pin", "PIN",
     "userId", "user_id", "uid", "UID", "employeeId", "employee_id",
-    "deviceUserId", "userSn", "userid", "UserID", "enrollId", "enrollid"
+    "deviceUserId", "userSn", "userid", "UserID", "enrollId", "enrollid",
+    "registration_id", "registrationId", "access_id", "accessId"
   ],
   empName: [
     "empName", "emp_name", "name", "userName", "user_name", "employeeName",
-    "employee_name", "fullName", "full_name"
+    "employee_name", "fullName", "full_name", "person_name", "personName"
   ],
-  date: ["date", "att_date", "attDate", "workDate", "work_date", "punchDate"],
-  time: ["time", "punchTime", "recordTime", "attTime", "timestamp", "DateTime", "dateTime"],
+  date: ["date", "att_date", "attDate", "workDate", "work_date", "punchDate", "access_date", "accessDate"],
+  time: ["time", "punchTime", "recordTime", "attTime", "timestamp", "DateTime", "dateTime", "access_time", "accessTime", "att_datetime"],
   inTime: ["inTime", "in_time", "first_punch", "firstPunch", "checkIn", "check_in", "clockIn"],
   outTime: ["outTime", "out_time", "last_punch", "lastPunch", "checkOut", "check_out", "clockOut"],
   total_time: ["total_time", "totalTime", "worked", "duration", "workHours", "work_hours"]
@@ -81,7 +82,7 @@ function extraParams(row) {
 function extractRows(payload) {
   if (Array.isArray(payload)) return payload;
   if (!payload || typeof payload !== "object") return [];
-  const keys = ["data", "records", "items", "rows", "results", "attendance", "logs", "punches", "selectResult"];
+  const keys = ["data", "records", "items", "rows", "results", "attendance", "logs", "log", "punches", "selectResult"];
   for (const key of keys) {
     const value = payload[key];
     if (Array.isArray(value)) return value;

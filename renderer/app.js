@@ -29,26 +29,89 @@ function formData(form) {
   return Object.fromEntries(new FormData(form).entries());
 }
 
+function currentType(form) {
+  return (form && form.type && form.type.value) || "stellarbd";
+}
+
+function applyDeviceType(form) {
+  if (!form) return;
+  const type = currentType(form);
+  form.querySelectorAll("[data-fields]").forEach((el) => {
+    el.classList.toggle("hidden", el.getAttribute("data-fields") !== type);
+  });
+  const stellar = type === "stellarbd";
+  const zk = type === "zkteco";
+  const name = form.querySelector('[name="name"]');
+  const authUser = form.querySelector('[name="authUser"]');
+  const authCode = form.querySelector('[name="authCode"]');
+  const ip = form.querySelector('[name="ip"]');
+  const port = form.querySelector('[name="port"]');
+  if (name) name.required = true;
+  if (authUser) authUser.required = stellar;
+  if (authCode) authCode.required = stellar;
+  if (ip) ip.required = zk;
+  if (port) port.required = zk;
+  const hint = form.querySelector("#quickResult");
+  if (hint && form.id === "quickForm") {
+    if (type === "stellarbd") hint.textContent = "Select StellarBD, enter auth_user and auth_code, then test or pull.";
+    else if (type === "tipsoi") hint.textContent = "Tipsoi is not connected yet. Choose StellarBD.";
+    else hint.textContent = "Leave username, password, and comm key empty if the device has none.";
+  }
+}
+
 function devicePayload(data) {
+  const type = data.type || "stellarbd";
+  const name = (data.name || "").trim();
+  if (type === "stellarbd") {
+    return {
+      type: "stellarbd",
+      protocol: "stellarbd",
+      name: name || "StellarBD",
+      apiUrl: data.apiUrl || "https://rumytechnologies.com/rams/json_api",
+      authUser: data.authUser || "",
+      authCode: data.authCode || ""
+    };
+  }
+  if (type === "tipsoi") {
+    return {
+      type: "tipsoi",
+      protocol: "tipsoi",
+      name: name || "Tipsoi",
+      apiUrl: data.apiUrl || "",
+      username: data.username || "",
+      password: data.password || ""
+    };
+  }
   return {
+    type: "zkteco",
+    protocol: "auto",
+    name: name || data.ip,
     ip: data.ip,
     port: Number(data.port) || 4370,
-    protocol: "auto",
-    name: data.ip,
     username: data.username || "",
     password: data.password || "",
     commKey: Number(data.commKey) || 0
   };
 }
 
+function deviceTarget(d) {
+  if (d.type === "stellarbd" || d.protocol === "stellarbd") return d.apiUrl || "RAMS API";
+  if (d.type === "tipsoi") return d.apiUrl || "-";
+  return d.ip ? `${d.ip}:${d.port || 4370}` : "-";
+}
+
+function deviceUser(d) {
+  return d.authUser || d.username || "-";
+}
+
 function renderDevices() {
   const body = document.getElementById("deviceTable");
   body.innerHTML = state.devices.map((d) => `
     <tr>
-      <td>${d.ip}</td>
-      <td>${d.port}</td>
-      <td>${d.username || "-"}</td>
-      <td>${d.commKey || 0}</td>
+      <td>${d.name || "-"}</td>
+      <td>${d.type || d.protocol || "-"}</td>
+      <td>${deviceTarget(d)}</td>
+      <td>${deviceUser(d)}</td>
       <td class="actions">
         <button data-act="test" data-id="${d.id}">Test</button>
         <button data-act="pull" data-id="${d.id}">Pull</button>
@@ -276,12 +339,26 @@ document.querySelectorAll(".nav-btn").forEach((btn) => {
   btn.addEventListener("click", () => setView(btn.dataset.view));
 });
 
+document.querySelectorAll("[data-type-select]").forEach((select) => {
+  select.addEventListener("change", () => applyDeviceType(select.form));
+});
+applyDeviceType(document.getElementById("quickForm"));
+applyDeviceType(document.getElementById("deviceForm"));
+
 document.getElementById("deviceForm").addEventListener("submit", async (e) => {
   e.preventDefault();
-  await api("/api/devices", { method: "POST", body: JSON.stringify(devicePayload(formData(e.target))) });
+  const payload = devicePayload(formData(e.target));
+  if (payload.type === "tipsoi") {
+    alert("Tipsoi is not connected yet. Choose StellarBD.");
+    return;
+  }
+  await api("/api/devices", { method: "POST", body: JSON.stringify(payload) });
   e.target.reset();
-  e.target.port.value = 4370;
-  e.target.commKey.value = 0;
+  if (e.target.type) e.target.type.value = "stellarbd";
+  if (e.target.apiUrl) e.target.apiUrl.value = "https://rumytechnologies.com/rams/json_api";
+  if (e.target.port) e.target.port.value = 4370;
+  if (e.target.commKey) e.target.commKey.value = 0;
+  applyDeviceType(e.target);
   await refresh();
 });
 
@@ -306,9 +383,14 @@ document.getElementById("deviceTable").addEventListener("click", async (e) => {
 document.getElementById("quickForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const out = document.getElementById("quickResult");
+  const payload = devicePayload(formData(e.target));
+  if (payload.type === "tipsoi") {
+    out.textContent = "Tipsoi is not connected yet. Choose StellarBD.";
+    return;
+  }
   out.textContent = "Testing...";
   try {
-    const result = await api("/api/test", { method: "POST", body: JSON.stringify(devicePayload(formData(e.target))) });
+    const result = await api("/api/test", { method: "POST", body: JSON.stringify(payload) });
     out.textContent = result.message || JSON.stringify(result);
   } catch (err) {
     out.textContent = err.message;
@@ -317,9 +399,14 @@ document.getElementById("quickForm").addEventListener("submit", async (e) => {
 
 document.getElementById("quickPull").addEventListener("click", async () => {
   const out = document.getElementById("quickResult");
+  const payload = devicePayload(formData(document.getElementById("quickForm")));
+  if (payload.type === "tipsoi") {
+    out.textContent = "Tipsoi is not connected yet. Choose StellarBD.";
+    return;
+  }
   out.textContent = "Pulling logs...";
   try {
-    const result = await api("/api/pull", { method: "POST", body: JSON.stringify(devicePayload(formData(document.getElementById("quickForm")))) });
+    const result = await api("/api/pull", { method: "POST", body: JSON.stringify(payload) });
     out.textContent = (result.message || "Done") + " | records: " + (result.logCount || 0);
     await refresh();
   } catch (err) {

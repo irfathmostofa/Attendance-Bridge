@@ -1,11 +1,24 @@
 const { connectZk, testZk } = require("./protocols/zk");
 const { connectHttp, testHttp } = require("./protocols/http");
 const { testTcp, connectTcp } = require("./protocols/tcp");
+const { connectStellarbd, testStellarbd } = require("./protocols/stellarbd");
+const { inferType } = require("./deviceTypes");
 const store = require("./store");
 const { discoveredFields, groupPunches } = require("./fields");
 
+function deviceKind(device) {
+  return inferType(device, {});
+}
+
 async function autoDetect(device) {
+  const kind = deviceKind(device);
   const protocol = (device.protocol || "auto").toLowerCase();
+  if (kind === "stellarbd" || protocol === "stellarbd") {
+    return connectStellarbd(device);
+  }
+  if (kind === "tipsoi" || protocol === "tipsoi") {
+    throw new Error("Tipsoi is not connected yet. Choose StellarBD.");
+  }
   if (protocol === "zkteco" || protocol === "zk") {
     return connectZk(device);
   }
@@ -47,7 +60,12 @@ async function autoDetect(device) {
 }
 
 async function testDevice(device) {
+  const kind = deviceKind(device);
   const protocol = (device.protocol || "auto").toLowerCase();
+  if (kind === "stellarbd" || protocol === "stellarbd") return testStellarbd(device);
+  if (kind === "tipsoi" || protocol === "tipsoi") {
+    return { ok: false, protocol: "tipsoi", message: "Tipsoi is not connected yet. Choose StellarBD." };
+  }
   if (protocol === "zkteco" || protocol === "zk") return testZk(device);
   if (protocol === "http") return testHttp(device);
   if (protocol === "tcp") return testTcp(device);

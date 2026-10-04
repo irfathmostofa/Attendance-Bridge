@@ -14,6 +14,7 @@ const {
   removeStudentEverywhere,
   listDeviceUsers
 } = require("./students");
+const { DEVICE_TYPES, buildDevice, inferType } = require("./deviceTypes");
 
 const SYNC_CONFIG_KEYS = [
   "syncUrl",
@@ -84,28 +85,27 @@ function createApp() {
     res.json(safe);
   });
 
+  app.get("/api/device-types", (_req, res) => {
+    res.json(DEVICE_TYPES);
+  });
+
   app.get("/api/devices", (_req, res) => {
     res.json(store.getConfig().devices || []);
   });
 
   app.post("/api/devices", (req, res) => {
     const config = store.getConfig();
-    const device = {
-      id: Date.now().toString(36),
-      name: req.body.ip,
-      ip: req.body.ip,
-      port: Number(req.body.port) || 4370,
-      protocol: "auto",
-      username: req.body.username || "",
-      password: req.body.password || "",
-      commKey: Number(req.body.commKey) || 0,
-      token: req.body.token || "",
-      timeout: 8000
-    };
+    const body = req.body || {};
+    const kind = inferType(body, {});
+    const tipsoi = DEVICE_TYPES.find((t) => t.id === "tipsoi");
+    if (kind === "tipsoi" && tipsoi && !tipsoi.ready) {
+      return res.status(400).json({ error: "Tipsoi is not connected yet. Choose StellarBD." });
+    }
+    const device = buildDevice(body);
     config.devices = config.devices || [];
     config.devices.push(device);
     store.saveConfig(config);
-    store.addEvent({ type: "device", level: "info", message: `Added device ${device.name} (${device.ip}:${device.port})` });
+    store.addEvent({ type: "device", level: "info", message: `Added ${device.type} device ${device.name}` });
     res.status(201).json(device);
   });
 
@@ -113,19 +113,7 @@ function createApp() {
     const config = store.getConfig();
     const idx = (config.devices || []).findIndex((d) => d.id === req.params.id);
     if (idx < 0) return res.status(404).json({ error: "Device not found" });
-    const body = req.body || {};
-    config.devices[idx] = {
-      ...config.devices[idx],
-      ip: body.ip || config.devices[idx].ip,
-      port: body.port != null ? Number(body.port) : config.devices[idx].port,
-      username: body.username != null ? body.username : config.devices[idx].username,
-      password: body.password != null ? body.password : config.devices[idx].password,
-      commKey: body.commKey != null ? Number(body.commKey) : config.devices[idx].commKey,
-      token: body.token != null ? body.token : config.devices[idx].token,
-      id: config.devices[idx].id,
-      protocol: "auto",
-      name: body.ip || config.devices[idx].name
-    };
+    config.devices[idx] = buildDevice(req.body || {}, config.devices[idx]);
     store.saveConfig(config);
     res.json(config.devices[idx]);
   });
@@ -188,7 +176,7 @@ function createApp() {
 
   app.post("/api/test", async (req, res) => {
     try {
-      const result = await testDevice(req.body || {});
+      const result = await testDevice(buildDevice(req.body || {}));
       res.json(result);
     } catch (err) {
       res.status(500).json({ ok: false, message: err.message });
@@ -197,7 +185,7 @@ function createApp() {
 
   app.post("/api/pull", async (req, res) => {
     try {
-      const result = await pullDevice(req.body || {});
+      const result = await pullDevice(buildDevice(req.body || {}));
       res.json(result);
     } catch (err) {
       res.status(500).json({ ok: false, message: err.message });

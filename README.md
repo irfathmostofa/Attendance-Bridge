@@ -21,8 +21,9 @@ Your ERP              -->  this PC (Attendance Bridge)  -->  Attendance device
    student + RFID          POST /api/erp/students            write user + card
 ```
 
-1. You enter the device IP, port, and credentials if the device has them.
-2. The app auto-detects how to talk to the device:
+1. You choose the device type first (StellarBD, Tipsoi, or ZKTeco).
+2. Fields change by type. StellarBD uses RAMS `fetch_log` (`auth_user`, `auth_code`).
+3. ZKTeco still uses IP, port, and optional comm key:
    - ZKTeco pull (common port `4370`)
    - iClock / ADMS push (`/iclock/cdata`)
    - HTTP attendance API
@@ -114,12 +115,16 @@ By default the server must accept `empID`, `empName`, `date`, `inTime`, `outTime
 ### 4. Add the device
 
 1. Open **Devices** (or use **Connect a device** on Dashboard)
-2. Enter **IP** (example: `192.168.1.201`)
-3. Enter **Port** (ZKTeco is usually `4370`)
-4. Enter credentials if the device needs them:
-   - **Username** / **Password** for HTTP or login-protected devices
-   - **Comm key** for ZKTeco (default `0` if unset)
-5. Leave credential fields empty if the device has none
+2. Choose the **device type** first
+3. Enter a **device name**
+4. For **StellarBD**:
+   - API URL defaults to `https://rumytechnologies.com/rams/json_api`
+   - Enter `auth_user` and `auth_code`
+   - Pull uses `operation: fetch_log` for today `00:00:00` to `23:59:59`
+5. For **ZKTeco**:
+   - Enter **IP** (example: `192.168.1.201`)
+   - Enter **Port** (usually `4370`)
+   - Optional username, password, comm key
 6. Click **Add device**
 
 ### 5. Test, pull, sync
@@ -222,6 +227,7 @@ Electron needs Node.js 18+. The attendance device itself is not an OS; it is a n
 
 Works when the device is reachable by IP and port and uses one of:
 
+- StellarBD RAMS JSON API (`fetch_log`)
 - ZKTeco native protocol
 - iClock / ADMS push
 - HTTP attendance API

@@ -1,5 +1,10 @@
 const store = require("./store");
 const { pushZkUsers, deleteZkUsers, listZkUsers } = require("./protocols/zk");
+const { inferType } = require("./deviceTypes");
+
+function isZkDevice(device) {
+  return inferType(device, {}) === "zkteco";
+}
 
 const FIELD_ALIASES = {
   studentId: ["studentId", "student_id", "stuId", "stu_id", "empID", "empId", "emp_id", "userId", "user_id", "pin", "id"],
@@ -51,6 +56,16 @@ async function pushToDevices(students, deviceId) {
   }
   const deviceResults = [];
   for (const device of devices) {
+    if (!isZkDevice(device)) {
+      deviceResults.push({
+        deviceId: device.id,
+        ip: device.ip || device.apiUrl || "",
+        ok: true,
+        skipped: true,
+        message: `${device.type || device.protocol} does not support writing users from this bridge`
+      });
+      continue;
+    }
     try {
       const result = await pushZkUsers(device, students);
       deviceResults.push({
@@ -119,6 +134,10 @@ async function removeStudentEverywhere(studentId, options) {
     const devices = targetDevices(options && options.deviceId);
     const deviceResults = [];
     for (const d of devices) {
+      if (!isZkDevice(d)) {
+        deviceResults.push({ deviceId: d.id, ip: d.ip || d.apiUrl || "", ok: true, skipped: true });
+        continue;
+      }
       try {
         deviceResults.push({ deviceId: d.id, ip: d.ip, ...(await deleteZkUsers(d, [student])) });
       } catch (err) {
@@ -138,6 +157,14 @@ async function removeStudentEverywhere(studentId, options) {
 
 async function listDeviceUsers(deviceId) {
   const [device] = targetDevices(deviceId);
+  if (!isZkDevice(device)) {
+    return {
+      ok: false,
+      protocol: device.protocol || device.type,
+      users: [],
+      message: "User list is only supported for ZKTeco devices"
+    };
+  }
   return listZkUsers(device);
 }
 

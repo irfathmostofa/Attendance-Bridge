@@ -36,7 +36,7 @@
         <header class="page-head">
           <div>
             <h2>Dashboard</h2>
-            <p>Enter device IP and port. Pull logs to your ERP, or push students from the ERP onto the device.</p>
+            <p>Choose the device type first. Fields change by type. StellarBD uses RAMS fetch_log.</p>
           </div>
         </header>
         <div class="stats">
@@ -49,26 +49,52 @@
           <div class="card">
             <h3>Connect a device</h3>
             <form id="quickForm" class="form">
-              <label>Device IP
-                <input name="ip" placeholder="192.168.1.201" required />
+              <label>Device type
+                <select name="type" data-type-select>
+                  <option value="stellarbd" selected>StellarBD</option>
+                  <option value="tipsoi">Tipsoi</option>
+                  <option value="zkteco">ZKTeco / IP device</option>
+                </select>
               </label>
-              <label>Port
-                <input name="port" type="number" value="4370" required />
+              <label>Device name
+                <input name="name" placeholder="Office gate" required />
               </label>
-              <label>Username
-                <input name="username" placeholder="optional" />
-              </label>
-              <label>Password
-                <input name="password" type="password" placeholder="optional" />
-              </label>
-              <label>Comm key
-                <input name="commKey" type="number" value="0" />
-              </label>
+              <div data-fields="stellarbd">
+                <label>API URL
+                  <input name="apiUrl" value="https://rumytechnologies.com/rams/json_api" />
+                </label>
+                <label>auth_user
+                  <input name="authUser" placeholder="DemoUser" required />
+                </label>
+                <label>auth_code
+                  <input name="authCode" type="password" placeholder="adminauthcode" required />
+                </label>
+              </div>
+              <div data-fields="tipsoi" class="hidden">
+                <p class="hint">Tipsoi is not connected yet. Choose StellarBD.</p>
+              </div>
+              <div data-fields="zkteco" class="hidden">
+                <label>Device IP
+                  <input name="ip" placeholder="192.168.1.201" />
+                </label>
+                <label>Port
+                  <input name="port" type="number" value="4370" />
+                </label>
+                <label>Username
+                  <input name="username" placeholder="optional" />
+                </label>
+                <label>Password
+                  <input name="password" type="password" placeholder="optional" />
+                </label>
+                <label>Comm key
+                  <input name="commKey" type="number" value="0" />
+                </label>
+              </div>
               <div class="row">
                 <button type="submit">Test</button>
                 <button type="button" id="quickPull" class="ghost">Pull logs</button>
               </div>
-              <p class="hint" id="quickResult">Leave username, password, and comm key empty if the device has none.</p>
+              <p class="hint" id="quickResult">Select StellarBD, enter auth_user and auth_code, then test or pull.</p>
             </form>
           </div>
           <div class="card">
@@ -82,16 +108,42 @@
         <header class="page-head">
           <div>
             <h2>Devices</h2>
-            <p>IP, port, and optional credentials. Protocol is auto-detected.</p>
+            <p>Ask for the device type first. StellarBD uses RAMS JSON API credentials.</p>
           </div>
         </header>
         <div class="card">
-          <form id="deviceForm" class="form compact device-form">
-            <label>IP <input name="ip" placeholder="192.168.1.201" required /></label>
-            <label>Port <input name="port" type="number" value="4370" required /></label>
-            <label>Username <input name="username" placeholder="optional" /></label>
-            <label>Password <input name="password" type="password" placeholder="optional" /></label>
-            <label>Comm key <input name="commKey" type="number" value="0" /></label>
+          <form id="deviceForm" class="form device-form">
+            <label>Device type
+              <select name="type" data-type-select>
+                <option value="stellarbd" selected>StellarBD</option>
+                <option value="tipsoi">Tipsoi</option>
+                <option value="zkteco">ZKTeco / IP device</option>
+              </select>
+            </label>
+            <label>Device name
+              <input name="name" placeholder="Office gate" required />
+            </label>
+            <div data-fields="stellarbd">
+              <label>API URL
+                <input name="apiUrl" value="https://rumytechnologies.com/rams/json_api" />
+              </label>
+              <label>auth_user
+                <input name="authUser" placeholder="DemoUser" />
+              </label>
+              <label>auth_code
+                <input name="authCode" type="password" placeholder="adminauthcode" />
+              </label>
+            </div>
+            <div data-fields="tipsoi" class="hidden">
+              <p class="hint">Tipsoi is not connected yet. Choose StellarBD.</p>
+            </div>
+            <div data-fields="zkteco" class="hidden">
+              <label>IP <input name="ip" placeholder="192.168.1.201" /></label>
+              <label>Port <input name="port" type="number" value="4370" /></label>
+              <label>Username <input name="username" placeholder="optional" /></label>
+              <label>Password <input name="password" type="password" placeholder="optional" /></label>
+              <label>Comm key <input name="commKey" type="number" value="0" /></label>
+            </div>
             <button type="submit">Add device</button>
           </form>
         </div>
@@ -99,10 +151,10 @@
           <table>
             <thead>
               <tr>
-                <th>IP</th>
-                <th>Port</th>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Target</th>
                 <th>User</th>
-                <th>Comm key</th>
                 <th></th>
               </tr>
             </thead>
