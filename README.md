@@ -137,22 +137,22 @@ That is the full daily procedure.
 
 ## ERP to device (students / RFID)
 
-The ERP cannot talk to the attendance machine directly. Admin defines **Get Users** and **Get New Users** API URLs in Settings. Both APIs must return the same required bridge JSON. The bridge maps the response, stores new ones, and skips duplicates (`studentId` or RFID `cardNo`). The device then asks this software for **new users** only.
+The ERP cannot talk to the attendance machine directly. Admin defines **Get Users** and **Get New Users** API URLs in Settings. Both APIs must return the same required bridge JSON. The bridge maps the response, stores new ones, and skips duplicates (`studentId` / `empID` or RFID `cardNo`). The device then asks this software for **new users** only.
 
-Required admin API response (`GET /api/users/demo`):
+Required admin API response (`GET /api/users/demo`). User id can be `studentId` or `empID`:
 
 ```json
 {
   "ok": true,
   "count": 2,
   "users": [
-    { "studentId": "1001", "name": "John Doe", "cardNo": "12345678" },
-    { "studentId": "1002", "name": "Jane Smith", "cardNo": "87654321" }
+    { "studentId": "1001", "empID": "1001", "name": "John Doe", "cardNo": "12345678" },
+    { "studentId": "1002", "empID": "1002", "name": "Jane Smith", "cardNo": "87654321" }
   ]
 }
 ```
 
-Aliases such as `empID`, `rfid`, `card_no`, or wrapping arrays in `data` / `students` are accepted and mapped to `studentId`, `name`, `cardNo`. If Get New Users URL is empty, Get Users is used.
+Send either `studentId` or `empID`. Aliases such as `employeeId`, `rfid`, `card_no`, or wrapping arrays in `data` / `students` are accepted. If Get New Users URL is empty, Get Users is used.
 
 From the ERP you can still POST directly:
 
@@ -162,14 +162,14 @@ Content-Type: application/json
 
 {
   "students": [
-    { "studentId": "1001", "name": "John Doe", "cardNo": "12345678" }
+    { "studentId": "1001", "empID": "1001", "name": "John Doe", "cardNo": "12345678" }
   ]
 }
 ```
 
 Same body is accepted on `POST /api/students`. Send one object or `{ "students": [ ... ] }` / `{ "users": [ ... ] }`.
 
-Default fields: `studentId`, `name`, `cardNo`. Aliases such as `empID`, `rfid`, `card_no` are accepted. To map your ERP names, set `studentFieldMap` in Settings or:
+Default fields: `studentId` / `empID`, `name`, `cardNo`. Either id key is accepted. To map your ERP names, set `studentFieldMap` in Settings or:
 
 ```
 PUT /api/config
@@ -205,7 +205,7 @@ Other endpoints:
 - `DELETE /api/students/:id` — remove from store and device
 - `{ "push": false }` — store only, do not write the device yet
 
-On the device, `studentId` is the PIN / user ID and `cardNo` is the RFID. ZKTeco PIN is limited to 9 characters.
+On the device, `studentId` / `empID` is the PIN / user ID and `cardNo` is the RFID. ZKTeco PIN is limited to 9 characters.
 
 User write requires ZKTeco native protocol. iClock / ADMS push devices do not accept users this way.
 

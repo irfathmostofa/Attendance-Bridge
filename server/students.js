@@ -71,8 +71,8 @@ function splitNewAndDuplicates(incoming, existing) {
 }
 
 const FIELD_ALIASES = {
-  studentId: ["studentId", "student_id", "stuId", "stu_id", "empID", "empId", "emp_id", "userId", "user_id", "pin", "id"],
-  name: ["name", "empName", "studentName", "fullName", "full_name", "student_name"],
+  studentId: ["studentId", "student_id", "stuId", "stu_id", "empID", "empId", "emp_id", "employeeId", "employee_id", "employeeID", "userId", "user_id", "pin", "id"],
+  name: ["name", "empName", "studentName", "fullName", "full_name", "student_name", "employeeName", "employee_name"],
   cardNo: ["cardNo", "card_no", "cardNumber", "card_number", "rfid", "rfidNo", "rfid_no", "card", "cardno"]
 };
 
@@ -109,7 +109,7 @@ function extractUserRows(payload) {
     if (value && Array.isArray(value.users)) return value.users;
     if (value && Array.isArray(value.students)) return value.students;
   }
-  if (payload.studentId || payload.empID || payload.userId) return [payload];
+  if (payload.studentId || payload.empID || payload.empId || payload.employeeId || payload.userId) return [payload];
   return [];
 }
 
@@ -123,8 +123,10 @@ function normalizeStudents(body, fieldMap) {
 }
 
 function publicUser(row) {
+  const id = row.studentId || row.empID || row.empId || row.userId || "";
   return {
-    studentId: row.studentId,
+    studentId: id,
+    empID: id,
     name: row.name || "",
     cardNo: row.cardNo || ""
   };
@@ -146,7 +148,7 @@ function demoUsersResponse() {
     { studentId: "1002", name: "Jane Smith", cardNo: "87654321" }
   ], {
     demo: true,
-    message: "Required bridge format. Admin Get Users / Get New Users API must return this shape. Extra keys and aliases (empID, rfid, card_no) are accepted and mapped."
+    message: "Required bridge format. User id can be studentId or empID. Extra keys and aliases (employeeId, rfid, card_no) are accepted and mapped."
   });
 }
 
@@ -187,7 +189,7 @@ async function fetchUsersFromApi(options) {
   const users = normalizeStudents(res.data, fieldMap);
   const contract = usersContract(users, { source: url });
   if (!users.length) {
-    contract.message = "API responded but no users were found. Required format: { ok: true, count: N, users: [{ studentId, name, cardNo }] }";
+    contract.message = "API responded but no users were found. Required format: { ok: true, count: N, users: [{ studentId or empID, name, cardNo }] }";
   }
   return {
     ...contract,
@@ -213,7 +215,7 @@ async function ingestStudents(body, options) {
   const fieldMap = (options && options.fieldMap) || store.getConfig().studentFieldMap;
   const students = normalizeStudents(body, fieldMap);
   if (!students.length) {
-    throw new Error("No students found. Send studentId (or mapped field) and optional name, cardNo.");
+    throw new Error("No users found. Send studentId or empID (or mapped field) and optional name, cardNo.");
   }
   const stored = store.getStudents();
   const split = splitNewAndDuplicates(students, stored);
@@ -350,7 +352,7 @@ async function checkNewUsers(deviceId) {
         ? { message: fetchMessage }
         : fetchUrl
           ? {}
-          : { message: "Set Get Users / Get New Users API URL in Settings. Admin API must return { ok, count, users: [{ studentId, name, cardNo }] }." })
+          : { message: "Set Get Users / Get New Users API URL in Settings. Admin API must return { ok, count, users: [{ studentId or empID, name, cardNo }] }." })
     });
   }
 

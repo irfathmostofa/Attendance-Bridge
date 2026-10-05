@@ -193,18 +193,18 @@
         </header>
         <div class="card">
           <form id="studentForm" class="form compact device-form">
-            <label>Student ID <input name="studentId" placeholder="1001" required /></label>
+            <label>Student / employee ID <input name="studentId" placeholder="1001" required /></label>
             <label>Name <input name="name" placeholder="John Doe" /></label>
             <label>RFID / card <input name="cardNo" placeholder="12345678" /></label>
             <button type="submit">Save and push</button>
           </form>
-          <p class="hint" id="studentResult">Admin defines Get Users / Get New Users APIs in Settings. Required response: <code>{ ok, count, users }</code>. Demo at <code>/api/users/demo</code>.</p>
+          <p class="hint" id="studentResult">Admin defines Get Users / Get New Users APIs in Settings. User id can be <code>studentId</code> or <code>empID</code>. Demo at <code>/api/users/demo</code>.</p>
         </div>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Student ID</th>
+                <th>Student / employee ID</th>
                 <th>Name</th>
                 <th>RFID / card</th>
                 <th>Updated</th>
@@ -246,8 +246,8 @@
                 <option value="POST">POST</option>
               </select>
             </label>
-            <label>ERP student ID field
-              <input name="studentIdField" placeholder="studentId" />
+            <label>ERP student / employee ID field
+              <input name="studentIdField" placeholder="studentId or empID" />
             </label>
             <label>ERP name field
               <input name="studentNameField" placeholder="name" />
