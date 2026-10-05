@@ -1,9 +1,73 @@
+const axios = require("axios");
 const store = require("./store");
 const { pushZkUsers, deleteZkUsers, listZkUsers } = require("./protocols/zk");
 const { inferType } = require("./deviceTypes");
+const { buildAuthHeaders } = require("./auth");
 
 function isZkDevice(device) {
   return inferType(device, {}) === "zkteco";
+}
+
+function sameId(a, b) {
+  return String(a || "").trim().slice(0, 9) === String(b || "").trim().slice(0, 9) && String(a || "").trim() !== "";
+}
+
+function sameCard(a, b) {
+  const left = String(a || "").trim();
+  const right = String(b || "").trim();
+  if (!left || !right) return false;
+  const n1 = Number(left);
+  const n2 = Number(right);
+  if (Number.isFinite(n1) && Number.isFinite(n2) && n1 >= 0 && n2 >= 0) return n1 === n2;
+  return left === right;
+}
+
+function userKey(student) {
+  return String((student && (student.studentId || student.userId)) || "").trim();
+}
+
+function findDuplicate(list, student) {
+  const id = userKey(student);
+  const card = student && student.cardNo;
+  return (list || []).find((row) => {
+    if (row === student) return false;
+    if (id && sameId(row.studentId || row.userId, id)) return true;
+    if (card && sameCard(row.cardNo || row.cardno, card)) return true;
+    return false;
+  }) || null;
+}
+
+function splitNewAndDuplicates(incoming, existing) {
+  const seen = [];
+  const unique = [];
+  const duplicates = [];
+  (incoming || []).forEach((student) => {
+    const fromExisting = findDuplicate(existing, student);
+    const fromBatch = findDuplicate(seen, student);
+    if (fromExisting) {
+      duplicates.push({
+        studentId: student.studentId,
+        name: student.name,
+        cardNo: student.cardNo,
+        reason: sameId(fromExisting.studentId || fromExisting.userId, student.studentId) ? "studentId" : "cardNo",
+        existingId: fromExisting.studentId || fromExisting.userId || ""
+      });
+      return;
+    }
+    if (fromBatch) {
+      duplicates.push({
+        studentId: student.studentId,
+        name: student.name,
+        cardNo: student.cardNo,
+        reason: "batch",
+        existingId: fromBatch.studentId
+      });
+      return;
+    }
+    unique.push(student);
+    seen.push(student);
+  });
+  return { unique, duplicates };
 }
 
 const FIELD_ALIASES = {
@@ -34,9 +98,86 @@ function normalizeStudent(row, fieldMap) {
   };
 }
 
+function extractUserRows(payload) {
+  if (Array.isArray(payload)) return payload;
+  if (!payload || typeof payload !== "object") return [];
+  const keys = ["users", "students", "data", "records", "items", "rows", "results"];
+  for (const key of keys) {
+    const value = payload[key];
+    if (Array.isArray(value)) return value;
+    if (value && Array.isArray(value.data)) return value.data;
+    if (value && Array.isArray(value.users)) return value.users;
+    if (value && Array.isArray(value.students)) return value.students;
+  }
+  if (payload.studentId || payload.empID || payload.userId) return [payload];
+  return [];
+}
+
 function normalizeStudents(body, fieldMap) {
-  const rows = Array.isArray(body) ? body : body && Array.isArray(body.students) ? body.students : [body];
+  const rows = extractUserRows(body);
+  if (!rows.length && body && !Array.isArray(body)) {
+    const fallback = Array.isArray(body.students) ? body.students : [body];
+    return fallback.map((row) => normalizeStudent(row, fieldMap)).filter(Boolean);
+  }
   return rows.map((row) => normalizeStudent(row, fieldMap)).filter(Boolean);
+}
+
+function publicUser(row) {
+  return {
+    studentId: row.studentId,
+    name: row.name || "",
+    cardNo: row.cardNo || ""
+  };
+}
+
+function usersContract(users, extra) {
+  const list = (users || []).map(publicUser);
+  return {
+    ok: true,
+    count: list.length,
+    users: list,
+    ...(extra || {})
+  };
+}
+
+function demoUsersResponse() {
+  return usersContract([
+    { studentId: "1001", name: "John Doe", cardNo: "12345678" },
+    { studentId: "1002", name: "Jane Smith", cardNo: "87654321" }
+  ], {
+    demo: true,
+    message: "Admin Get Users API should return this shape. Extra keys and aliases (empID, rfid, card_no) are accepted and mapped."
+  });
+}
+
+async function fetchUsersFromApi(options) {
+  const config = store.getConfig();
+  const url = (options && options.url) || config.userFetchUrl;
+  if (!url) {
+    throw new Error("User fetch URL is not configured. Set it in Settings.");
+  }
+  const method = String((options && options.method) || config.userFetchMethod || "GET").toLowerCase();
+  const headers = await buildAuthHeaders(config);
+  const res = await axios.request({
+    url,
+    method,
+    headers,
+    timeout: 20000,
+    validateStatus: () => true
+  });
+  if (res.status < 200 || res.status >= 300) {
+    throw new Error(`User API HTTP ${res.status} from ${url}`);
+  }
+  const fieldMap = (options && options.fieldMap) || config.studentFieldMap;
+  const users = normalizeStudents(res.data, fieldMap);
+  const contract = usersContract(users, { source: url });
+  if (!users.length) {
+    contract.message = "API responded but no users were found. Match the demo JSON: { users: [{ studentId, name, cardNo }] }";
+  }
+  return {
+    ...contract,
+    rawCount: extractUserRows(res.data).length
+  };
 }
 
 function targetDevices(deviceId) {
@@ -50,6 +191,170 @@ function targetDevices(deviceId) {
 }
 
 async function pushToDevices(students, deviceId) {
+  return pushNewUsersToDevices(students, deviceId);
+}
+
+async function ingestStudents(body, options) {
+  const fieldMap = (options && options.fieldMap) || store.getConfig().studentFieldMap;
+  const students = normalizeStudents(body, fieldMap);
+  if (!students.length) {
+    throw new Error("No students found. Send studentId (or mapped field) and optional name, cardNo.");
+  }
+  const stored = store.getStudents();
+  const split = splitNewAndDuplicates(students, stored);
+  if (!split.unique.length && split.duplicates.length) {
+    store.addEvent({
+      type: "students",
+      level: "info",
+      message: `Skipped ${split.duplicates.length} duplicate user(s)`
+    });
+    return {
+      ok: true,
+      count: 0,
+      newCount: 0,
+      duplicateCount: split.duplicates.length,
+      students: [],
+      duplicates: split.duplicates,
+      push: { ok: true, skipped: true, devices: [] }
+    };
+  }
+  const saved = split.unique.length ? store.upsertStudents(split.unique) : store.getStudents();
+  const shouldPush = options && options.push === false ? false : true;
+  let push = { ok: true, devices: [], skipped: true };
+  if (shouldPush && split.unique.length) {
+    push = await pushNewUsersToDevices(split.unique, options && options.deviceId);
+  }
+  store.addEvent({
+    type: "students",
+    level: push.ok ? "success" : "warn",
+    message: `ERP sent ${students.length} user(s), new ${split.unique.length}, duplicate ${split.duplicates.length}` + (shouldPush ? `, device write ${push.ok ? "ok" : "failed"}` : " (stored only)")
+  });
+  return {
+    ok: true,
+    count: split.unique.length,
+    newCount: split.unique.length,
+    duplicateCount: split.duplicates.length,
+    students: saved.filter((s) => split.unique.some((n) => n.studentId === s.studentId)),
+    duplicates: split.duplicates,
+    push
+  };
+}
+
+function deviceUserList(listed) {
+  return (listed && listed.users) || [];
+}
+
+function mapDeviceAsStudent(user) {
+  return {
+    studentId: String(user.userId || user.uid || "").trim(),
+    name: user.name || "",
+    cardNo: user.cardNo || user.cardno || ""
+  };
+}
+
+async function ingestFromUserApi(options) {
+  const fetched = await fetchUsersFromApi(options);
+  if (!fetched.users.length) {
+    store.addEvent({
+      type: "students",
+      level: "info",
+      message: fetched.message || "User API returned no users"
+    });
+    return {
+      ...fetched,
+      newCount: 0,
+      duplicateCount: 0,
+      duplicates: [],
+      students: [],
+      push: { ok: true, skipped: true, devices: [] }
+    };
+  }
+  const ingested = await ingestStudents({ users: fetched.users }, {
+    push: options && options.push === false ? false : true,
+    deviceId: options && options.deviceId
+  });
+  return {
+    ...ingested,
+    source: fetched.source,
+    fetchedCount: fetched.count
+  };
+}
+
+async function checkNewUsers(deviceId) {
+  const devices = targetDevices(deviceId);
+  let stored = store.getStudents();
+  const config = store.getConfig();
+  if (config.userFetchUrl) {
+    try {
+      const fetched = await fetchUsersFromApi();
+      if (fetched.users.length) {
+        const split = splitNewAndDuplicates(fetched.users.map((u) => ({ ...u, source: "user-api" })), stored);
+        if (split.unique.length) store.upsertStudents(split.unique);
+        stored = store.getStudents();
+      }
+    } catch (err) {
+      store.addEvent({ type: "students", level: "warn", message: "User API fetch failed: " + err.message });
+    }
+  }
+  const results = [];
+  for (const device of devices) {
+    if (!isZkDevice(device)) {
+      const split = splitNewAndDuplicates(stored, []);
+      results.push({
+        deviceId: device.id,
+        name: device.name,
+        type: device.type || device.protocol,
+        ok: true,
+        skipped: true,
+        message: `${device.type || device.protocol} cannot read onboard users; returning stored list`,
+        newUsers: split.unique,
+        duplicates: []
+      });
+      continue;
+    }
+    try {
+      const listed = await listZkUsers(device);
+      const onDevice = deviceUserList(listed).map(mapDeviceAsStudent);
+      const split = splitNewAndDuplicates(stored, onDevice);
+      results.push({
+        deviceId: device.id,
+        name: device.name,
+        ip: device.ip,
+        ok: true,
+        deviceUserCount: onDevice.length,
+        newCount: split.unique.length,
+        duplicateCount: split.duplicates.length,
+        newUsers: split.unique,
+        duplicates: split.duplicates
+      });
+    } catch (err) {
+      results.push({
+        deviceId: device.id,
+        name: device.name,
+        ip: device.ip,
+        ok: false,
+        message: err.message,
+        newUsers: [],
+        duplicates: []
+      });
+    }
+  }
+  const newUsers = results.length === 1 ? results[0].newUsers : stored.filter((student) => {
+    return results.some((row) => (row.newUsers || []).some((u) => u.studentId === student.studentId));
+  });
+  const duplicates = results.flatMap((row) => (row.duplicates || []).map((dup) => ({ ...dup, deviceId: row.deviceId })));
+  return {
+    ok: results.every((row) => row.ok),
+    storedCount: stored.length,
+    newCount: newUsers.length,
+    duplicateCount: duplicates.length,
+    newUsers,
+    duplicates,
+    devices: results
+  };
+}
+
+async function pushNewUsersToDevices(students, deviceId) {
   const devices = targetDevices(deviceId);
   if (!devices.length) {
     return { ok: false, message: "No device configured", devices: [] };
@@ -62,16 +367,30 @@ async function pushToDevices(students, deviceId) {
         ip: device.ip || device.apiUrl || "",
         ok: true,
         skipped: true,
+        newCount: 0,
+        duplicateCount: 0,
         message: `${device.type || device.protocol} does not support writing users from this bridge`
       });
       continue;
     }
     try {
-      const result = await pushZkUsers(device, students);
+      const listed = await listZkUsers(device);
+      const onDevice = deviceUserList(listed).map(mapDeviceAsStudent);
+      const split = splitNewAndDuplicates(students, onDevice);
+      let written = { ok: true, written: 0, failed: 0, results: [] };
+      if (split.unique.length) {
+        written = await pushZkUsers(device, split.unique);
+      }
       deviceResults.push({
         deviceId: device.id,
         ip: device.ip,
-        ...result
+        ok: written.ok,
+        newCount: split.unique.length,
+        duplicateCount: split.duplicates.length,
+        written: written.written || 0,
+        failed: written.failed || 0,
+        duplicates: split.duplicates,
+        results: written.results || []
       });
     } catch (err) {
       deviceResults.push({
@@ -88,41 +407,53 @@ async function pushToDevices(students, deviceId) {
   };
 }
 
-async function ingestStudents(body, options) {
-  const fieldMap = (options && options.fieldMap) || store.getConfig().studentFieldMap;
-  const students = normalizeStudents(body, fieldMap);
-  if (!students.length) {
-    throw new Error("No students found. Send studentId (or mapped field) and optional name, cardNo.");
-  }
-  const saved = store.upsertStudents(students);
-  const shouldPush = options && options.push === false ? false : true;
-  let push = { ok: true, devices: [], skipped: true };
-  if (shouldPush) {
-    push = await pushToDevices(students, options && options.deviceId);
-  }
-  store.addEvent({
-    type: "students",
-    level: push.ok ? "success" : "warn",
-    message: `ERP sent ${students.length} student(s)` + (shouldPush ? `, device write ${push.ok ? "ok" : "failed"}` : " (stored only)")
-  });
-  return {
-    ok: true,
-    count: students.length,
-    students: saved.filter((s) => students.some((n) => n.studentId === s.studentId)),
-    push
-  };
-}
-
 async function pushStoredStudents(deviceId) {
   const students = store.getStudents();
   if (!students.length) throw new Error("No students stored");
-  const push = await pushToDevices(students, deviceId);
+  const push = await pushNewUsersToDevices(students, deviceId);
+  const newCount = (push.devices || []).reduce((n, d) => n + (Number(d.newCount) || 0), 0);
+  const duplicateCount = (push.devices || []).reduce((n, d) => n + (Number(d.duplicateCount) || 0), 0);
   store.addEvent({
     type: "students",
     level: push.ok ? "success" : "warn",
-    message: `Pushed ${students.length} stored student(s) to device(s)`
+    message: `Pushed ${newCount} new user(s), skipped ${duplicateCount} duplicate(s)`
   });
-  return { ok: push.ok, count: students.length, push };
+  return { ok: push.ok, count: newCount, newCount, duplicateCount, push };
+}
+
+async function pushNewUsers(deviceId) {
+  const check = await checkNewUsers(deviceId);
+  if (!check.newUsers.length) {
+    store.addEvent({
+      type: "students",
+      level: "info",
+      message: `No new users to push. ${check.duplicateCount} duplicate(s) skipped`
+    });
+    return {
+      ok: true,
+      count: 0,
+      newCount: 0,
+      duplicateCount: check.duplicateCount,
+      newUsers: [],
+      duplicates: check.duplicates,
+      push: { ok: true, skipped: true, devices: check.devices }
+    };
+  }
+  const push = await pushNewUsersToDevices(check.newUsers, deviceId);
+  store.addEvent({
+    type: "students",
+    level: push.ok ? "success" : "warn",
+    message: `Device requested new users: pushed ${check.newCount}, skipped ${check.duplicateCount} duplicate(s)`
+  });
+  return {
+    ok: push.ok,
+    count: check.newCount,
+    newCount: check.newCount,
+    duplicateCount: check.duplicateCount,
+    newUsers: check.newUsers,
+    duplicates: check.duplicates,
+    push
+  };
 }
 
 async function removeStudentEverywhere(studentId, options) {
@@ -172,8 +503,14 @@ module.exports = {
   normalizeStudent,
   normalizeStudents,
   ingestStudents,
+  ingestFromUserApi,
+  fetchUsersFromApi,
+  demoUsersResponse,
   pushStoredStudents,
+  pushNewUsers,
+  checkNewUsers,
   removeStudentEverywhere,
   listDeviceUsers,
-  pushToDevices
+  pushToDevices,
+  splitNewAndDuplicates
 };

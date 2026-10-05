@@ -137,9 +137,24 @@ That is the full daily procedure.
 
 ## ERP to device (students / RFID)
 
-The ERP cannot talk to the attendance machine directly. It POSTs students to this bridge; the bridge writes `userId` + RFID card onto the ZKTeco device (port `4370`). After that, a card scan logs attendance as that student.
+The ERP cannot talk to the attendance machine directly. Admin provides a **Get Users API URL** in Settings. The bridge fetches users, maps them to a fixed JSON contract, stores new ones, and skips duplicates (`studentId` or RFID `cardNo`). The device then asks this software for **new users** only.
 
-From the ERP:
+Admin Get Users API (set in Settings) should return this demo shape (`GET /api/users/demo`):
+
+```json
+{
+  "ok": true,
+  "count": 2,
+  "users": [
+    { "studentId": "1001", "name": "John Doe", "cardNo": "12345678" },
+    { "studentId": "1002", "name": "Jane Smith", "cardNo": "87654321" }
+  ]
+}
+```
+
+Aliases such as `empID`, `rfid`, `card_no`, or wrapping arrays in `data` / `students` are accepted and mapped to `studentId`, `name`, `cardNo`.
+
+From the ERP you can still POST directly:
 
 ```
 POST http://<this-pc>:3780/api/erp/students
@@ -152,7 +167,7 @@ Content-Type: application/json
 }
 ```
 
-Same body is accepted on `POST /api/students`. Send one object or `{ "students": [ ... ] }`.
+Same body is accepted on `POST /api/students`. Send one object or `{ "students": [ ... ] }` / `{ "users": [ ... ] }`.
 
 Default fields: `studentId`, `name`, `cardNo`. Aliases such as `empID`, `rfid`, `card_no` are accepted. To map your ERP names, set `studentFieldMap` in Settings or:
 
@@ -161,11 +176,30 @@ PUT /api/config
 { "studentFieldMap": { "studentId": "stu_id", "name": "full_name", "cardNo": "rfid" } }
 ```
 
+Device pull of new users (check duplicates first):
+
+```
+GET  http://<this-pc>:3780/api/users/new
+POST http://<this-pc>:3780/api/users/new
+```
+
+One device:
+
+```
+GET  /api/devices/:id/users/new
+POST /api/devices/:id/users/new
+```
+
+`GET` returns users that are in the bridge store but not already on the device. `POST` writes only those new users. Duplicates by student ID or RFID are skipped.
+
 Other endpoints:
 
+- `GET /api/users/demo` — demo Get Users JSON for developers
+- `GET /api/users/fetch` — call admin Get Users API and return the mapped contract
+- `POST /api/users/fetch` — fetch, store new users, skip duplicates (`{ "push": false }` to store only)
 - `GET /api/students` — stored list
-- `POST /api/students/push` — write stored students to all devices
-- `POST /api/devices/:id/users` — write to one device
+- `POST /api/students/push` — write stored students, skipping users already on the device
+- `POST /api/devices/:id/users` — write to one device (duplicates skipped)
 - `DELETE /api/students/:id` — remove from store and device
 - `{ "push": false }` — store only, do not write the device yet
 

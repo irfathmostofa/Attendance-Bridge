@@ -183,9 +183,13 @@
         <header class="page-head">
           <div>
             <h2>Students</h2>
-            <p>ERP sends student ID and RFID here. The bridge writes them onto the attendance device so a card scan can log attendance.</p>
+            <p>ERP stores users here. The device asks this software for new users, then only those are pushed. Duplicates by ID or RFID are skipped.</p>
           </div>
-          <button id="pushStudentsBtn">Push to device</button>
+          <div class="row">
+            <button id="fetchUsersPageBtn" class="ghost">Fetch from API</button>
+            <button id="checkNewUsersBtn" class="ghost">Check new users</button>
+            <button id="pushStudentsBtn">Push new users</button>
+          </div>
         </header>
         <div class="card">
           <form id="studentForm" class="form compact device-form">
@@ -194,7 +198,7 @@
             <label>RFID / card <input name="cardNo" placeholder="12345678" /></label>
             <button type="submit">Save and push</button>
           </form>
-          <p class="hint" id="studentResult">ERP can also POST to <code>/api/erp/students</code>.</p>
+          <p class="hint" id="studentResult">Set Get Users API in Settings. Demo JSON is at <code>/api/users/demo</code>. Device then GET/POST <code>/api/users/new</code>.</p>
         </div>
         <div class="table-wrap">
           <table>
@@ -216,13 +220,22 @@
         <header class="page-head">
           <div>
             <h2>Settings</h2>
-            <p>Server API URL for attendance sync, plus ERP student field names.</p>
+            <p>Attendance sync URL, admin Get Users API, and ERP field names. Get Users must match the demo JSON.</p>
           </div>
         </header>
         <div class="card">
           <form id="settingsForm" class="form">
             <label>Server API URL
               <input name="syncUrl" placeholder="https://server.roohschool.edu.bd/server/postAttendence" />
+            </label>
+            <label>Get users API URL
+              <input name="userFetchUrl" placeholder="https://erp.example.com/api/users" />
+            </label>
+            <label>Get users method
+              <select name="userFetchMethod">
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+              </select>
             </label>
             <label>ERP student ID field
               <input name="studentIdField" placeholder="studentId" />
@@ -242,8 +255,14 @@
             </label>
             <button type="submit">Save</button>
           </form>
-          <p class="hint">Sample payload posted to the server (built from the latest device record):</p>
+          <p class="hint">Sample payload posted to the attendance server:</p>
           <pre class="preview" id="payloadPreview">{}</pre>
+          <p class="hint">Demo Get Users response. Admin software should return this shape:</p>
+          <pre class="preview" id="usersDemoPreview">{}</pre>
+          <div class="row">
+            <button type="button" id="fetchUsersBtn" class="ghost">Fetch users now</button>
+          </div>
+          <p class="hint" id="usersFetchResult"></p>
         </div>
       </section>
 

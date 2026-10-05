@@ -10,9 +10,14 @@ const { publicConfig, clearTokenCache } = require("./auth");
 const backup = require("./backup");
 const {
   ingestStudents,
+  ingestFromUserApi,
   pushStoredStudents,
+  pushNewUsers,
+  checkNewUsers,
   removeStudentEverywhere,
-  listDeviceUsers
+  listDeviceUsers,
+  demoUsersResponse,
+  fetchUsersFromApi
 } = require("./students");
 const { DEVICE_TYPES, buildDevice, inferType } = require("./deviceTypes");
 
@@ -37,6 +42,8 @@ const SYNC_CONFIG_KEYS = [
   "authTokenPath",
   "authTokenTtlMinutes",
   "studentFieldMap",
+  "userFetchUrl",
+  "userFetchMethod",
   "autoBackup",
   "backupRetainDays",
   "backupIntervalHours",
@@ -162,6 +169,26 @@ function createApp() {
     }
   });
 
+  app.get("/api/devices/:id/users/new", async (req, res) => {
+    const device = (store.getConfig().devices || []).find((d) => d.id === req.params.id);
+    if (!device) return res.status(404).json({ error: "Device not found" });
+    try {
+      res.json(await checkNewUsers(device.id));
+    } catch (err) {
+      res.status(500).json({ ok: false, message: err.message });
+    }
+  });
+
+  app.post("/api/devices/:id/users/new", async (req, res) => {
+    const device = (store.getConfig().devices || []).find((d) => d.id === req.params.id);
+    if (!device) return res.status(404).json({ error: "Device not found" });
+    try {
+      res.json(await pushNewUsers(device.id));
+    } catch (err) {
+      res.status(400).json({ ok: false, message: err.message });
+    }
+  });
+
   app.post("/api/devices/:id/pull", async (req, res) => {
     const device = (store.getConfig().devices || []).find((d) => d.id === req.params.id);
     if (!device) return res.status(404).json({ error: "Device not found" });
@@ -239,6 +266,32 @@ function createApp() {
     res.json(store.getStudents());
   });
 
+  app.get("/api/users/demo", (_req, res) => {
+    res.json(demoUsersResponse());
+  });
+
+  app.get("/api/users/fetch", async (_req, res) => {
+    try {
+      res.json(await fetchUsersFromApi({ push: false }));
+    } catch (err) {
+      res.status(400).json({ ok: false, message: err.message, demo: demoUsersResponse() });
+    }
+  });
+
+  app.post("/api/users/fetch", async (req, res) => {
+    try {
+      const push = req.body && req.body.push === false ? false : true;
+      res.json(await ingestFromUserApi({
+        url: req.body && req.body.url,
+        method: req.body && req.body.method,
+        deviceId: req.body && req.body.deviceId,
+        push
+      }));
+    } catch (err) {
+      res.status(400).json({ ok: false, message: err.message, demo: demoUsersResponse() });
+    }
+  });
+
   app.post("/api/students", async (req, res) => {
     try {
       const push = req.body && req.body.push === false ? false : true;
@@ -265,6 +318,23 @@ function createApp() {
     try {
       const result = await pushStoredStudents(req.body && req.body.deviceId);
       res.json(result);
+    } catch (err) {
+      res.status(400).json({ ok: false, message: err.message });
+    }
+  });
+
+  app.get("/api/users/new", async (req, res) => {
+    try {
+      res.json(await checkNewUsers(req.query.deviceId));
+    } catch (err) {
+      res.status(400).json({ ok: false, message: err.message });
+    }
+  });
+
+  app.post("/api/users/new", async (req, res) => {
+    try {
+      const deviceId = (req.body && req.body.deviceId) || req.query.deviceId;
+      res.json(await pushNewUsers(deviceId));
     } catch (err) {
       res.status(400).json({ ok: false, message: err.message });
     }

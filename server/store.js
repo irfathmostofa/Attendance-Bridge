@@ -61,6 +61,8 @@ const DEFAULT_CONFIG = {
     name: "name",
     cardNo: "cardNo"
   },
+  userFetchUrl: "",
+  userFetchMethod: "GET",
   autoBackup: true,
   backupRetainDays: 30,
   backupIntervalHours: 24,

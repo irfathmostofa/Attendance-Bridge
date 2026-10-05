@@ -224,6 +224,8 @@ function fillSettings() {
   const form = document.getElementById("settingsForm");
   const map = state.config.studentFieldMap || {};
   form.syncUrl.value = state.config.syncUrl || "";
+  form.userFetchUrl.value = state.config.userFetchUrl || "";
+  form.userFetchMethod.value = state.config.userFetchMethod || "GET";
   form.studentIdField.value = map.studentId || "studentId";
   form.studentNameField.value = map.name || "name";
   form.studentCardField.value = map.cardNo || "cardNo";
@@ -286,11 +288,18 @@ function readFieldMap() {
 
 async function fillPreview() {
   const el = document.getElementById("payloadPreview");
+  const demo = document.getElementById("usersDemoPreview");
   try {
     const preview = await api("/api/sync/preview");
     el.textContent = JSON.stringify(preview.samplePayload || {}, null, 2);
   } catch (err) {
     el.textContent = err.message;
+  }
+  try {
+    const usersDemo = await api("/api/users/demo");
+    if (demo) demo.textContent = JSON.stringify(usersDemo, null, 2);
+  } catch (err) {
+    if (demo) demo.textContent = err.message;
   }
 }
 
@@ -431,8 +440,46 @@ document.getElementById("studentForm").addEventListener("submit", async (e) => {
       body: JSON.stringify({ studentId: data.studentId, name: data.name, cardNo: data.cardNo })
     });
     const push = result.push || {};
-    out.textContent = `Saved ${result.count}. Device write: ${push.ok ? "ok" : (push.message || "failed")}`;
+    if (result.duplicateCount && !result.newCount) {
+      out.textContent = "Duplicate user. Skipped push.";
+    } else {
+      out.textContent = `Saved ${result.newCount || result.count || 0} new. ${result.duplicateCount ? result.duplicateCount + " duplicate(s) skipped. " : ""}Device write: ${push.ok ? "ok" : (push.message || "failed")}`;
+    }
     e.target.reset();
+    await refresh();
+  } catch (err) {
+    out.textContent = err.message;
+  }
+});
+
+function userPushSummary(result) {
+  const extras = [];
+  if (result.duplicateCount) extras.push(result.duplicateCount + " duplicate(s) skipped");
+  const extra = extras.length ? " | " + extras.join(", ") : "";
+  return `New ${result.newCount || result.count || 0}${extra}`;
+}
+
+async function fetchUsersNow(outEl) {
+  const out = outEl || document.getElementById("usersFetchResult") || document.getElementById("studentResult");
+  out.textContent = "Fetching users from admin API...";
+  try {
+    const result = await api("/api/users/fetch", { method: "POST", body: JSON.stringify({ push: false }) });
+    out.textContent = `Fetched ${result.fetchedCount || result.count || 0}. New ${result.newCount || 0}. Duplicate ${result.duplicateCount || 0}.`;
+    await refresh();
+  } catch (err) {
+    out.textContent = err.message;
+  }
+}
+
+document.getElementById("fetchUsersBtn").addEventListener("click", () => fetchUsersNow(document.getElementById("usersFetchResult")));
+document.getElementById("fetchUsersPageBtn").addEventListener("click", () => fetchUsersNow(document.getElementById("studentResult")));
+
+document.getElementById("checkNewUsersBtn").addEventListener("click", async () => {
+  const out = document.getElementById("studentResult");
+  out.textContent = "Checking device for new users...";
+  try {
+    const result = await api("/api/users/new");
+    out.textContent = userPushSummary(result) + (result.ok ? "" : " | check failed");
     await refresh();
   } catch (err) {
     out.textContent = err.message;
@@ -441,10 +488,11 @@ document.getElementById("studentForm").addEventListener("submit", async (e) => {
 
 document.getElementById("pushStudentsBtn").addEventListener("click", async () => {
   const out = document.getElementById("studentResult");
-  out.textContent = "Pushing to device...";
+  out.textContent = "Checking new users and pushing...";
   try {
-    const result = await api("/api/students/push", { method: "POST", body: "{}" });
-    out.textContent = "Pushed " + result.count + " student(s). " + (result.push && result.push.ok ? "Device OK" : "Device write failed");
+    const result = await api("/api/users/new", { method: "POST", body: "{}" });
+    const push = result.push || {};
+    out.textContent = userPushSummary(result) + ". Device write: " + (push.ok ? "ok" : (push.message || "failed"));
     await refresh();
   } catch (err) {
     out.textContent = err.message;
@@ -472,6 +520,8 @@ document.getElementById("settingsForm").addEventListener("submit", async (e) => 
     method: "PUT",
     body: JSON.stringify({
       syncUrl: data.syncUrl,
+      userFetchUrl: data.userFetchUrl || "",
+      userFetchMethod: data.userFetchMethod || "GET",
       fieldMap: readFieldMap(),
       extraFields,
       studentFieldMap: {
