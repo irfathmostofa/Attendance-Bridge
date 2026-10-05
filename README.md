@@ -137,9 +137,9 @@ That is the full daily procedure.
 
 ## ERP to device (students / RFID)
 
-The ERP cannot talk to the attendance machine directly. Admin provides a **Get Users API URL** in Settings. The bridge fetches users, maps them to a fixed JSON contract, stores new ones, and skips duplicates (`studentId` or RFID `cardNo`). The device then asks this software for **new users** only.
+The ERP cannot talk to the attendance machine directly. Admin defines **Get Users** and **Get New Users** API URLs in Settings. Both APIs must return the same required bridge JSON. The bridge maps the response, stores new ones, and skips duplicates (`studentId` or RFID `cardNo`). The device then asks this software for **new users** only.
 
-Admin Get Users API (set in Settings) should return this demo shape (`GET /api/users/demo`):
+Required admin API response (`GET /api/users/demo`):
 
 ```json
 {
@@ -152,7 +152,7 @@ Admin Get Users API (set in Settings) should return this demo shape (`GET /api/u
 }
 ```
 
-Aliases such as `empID`, `rfid`, `card_no`, or wrapping arrays in `data` / `students` are accepted and mapped to `studentId`, `name`, `cardNo`.
+Aliases such as `empID`, `rfid`, `card_no`, or wrapping arrays in `data` / `students` are accepted and mapped to `studentId`, `name`, `cardNo`. If Get New Users URL is empty, Get Users is used.
 
 From the ERP you can still POST directly:
 
@@ -176,12 +176,14 @@ PUT /api/config
 { "studentFieldMap": { "studentId": "stu_id", "name": "full_name", "cardNo": "rfid" } }
 ```
 
-Device pull of new users (check duplicates first):
+Device pull of new users (admin API first, then skip users already on the device):
 
 ```
 GET  http://<this-pc>:3780/api/users/new
 POST http://<this-pc>:3780/api/users/new
 ```
+
+`GET /api/users/new` always answers with the required bridge format `{ ok, count, users }`.
 
 One device:
 
@@ -190,11 +192,11 @@ GET  /api/devices/:id/users/new
 POST /api/devices/:id/users/new
 ```
 
-`GET` returns users that are in the bridge store but not already on the device. `POST` writes only those new users. Duplicates by student ID or RFID are skipped.
+`GET` calls the admin Get New Users API (falls back to Get Users), maps it to `{ ok, count, users }`, and skips users already on the device. `POST` writes only those new users. Duplicates by student ID or RFID are skipped.
 
 Other endpoints:
 
-- `GET /api/users/demo` — demo Get Users JSON for developers
+- `GET /api/users/demo` — required `{ ok, count, users }` contract for admin developers
 - `GET /api/users/fetch` — call admin Get Users API and return the mapped contract
 - `POST /api/users/fetch` — fetch, store new users, skip duplicates (`{ "push": false }` to store only)
 - `GET /api/students` — stored list

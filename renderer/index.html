@@ -198,7 +198,7 @@
             <label>RFID / card <input name="cardNo" placeholder="12345678" /></label>
             <button type="submit">Save and push</button>
           </form>
-          <p class="hint" id="studentResult">Set Get Users API in Settings. Demo JSON is at <code>/api/users/demo</code>. Device then GET/POST <code>/api/users/new</code>.</p>
+          <p class="hint" id="studentResult">Admin defines Get Users / Get New Users APIs in Settings. Required response: <code>{ ok, count, users }</code>. Demo at <code>/api/users/demo</code>.</p>
         </div>
         <div class="table-wrap">
           <table>
@@ -220,7 +220,7 @@
         <header class="page-head">
           <div>
             <h2>Settings</h2>
-            <p>Attendance sync URL, admin Get Users API, and ERP field names. Get Users must match the demo JSON.</p>
+            <p>Attendance sync URL, admin Get Users / Get New Users APIs, and ERP field names. Both APIs must return the required bridge JSON.</p>
           </div>
         </header>
         <div class="card">
@@ -233,6 +233,15 @@
             </label>
             <label>Get users method
               <select name="userFetchMethod">
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+              </select>
+            </label>
+            <label>Get new users API URL
+              <input name="userNewFetchUrl" placeholder="https://erp.example.com/api/users/new" />
+            </label>
+            <label>Get new users method
+              <select name="userNewFetchMethod">
                 <option value="GET">GET</option>
                 <option value="POST">POST</option>
               </select>
@@ -257,7 +266,7 @@
           </form>
           <p class="hint">Sample payload posted to the attendance server:</p>
           <pre class="preview" id="payloadPreview">{}</pre>
-          <p class="hint">Demo Get Users response. Admin software should return this shape:</p>
+          <p class="hint">Required bridge format. Admin Get Users and Get New Users APIs must return this shape:</p>
           <pre class="preview" id="usersDemoPreview">{}</pre>
           <div class="row">
             <button type="button" id="fetchUsersBtn" class="ghost">Fetch users now</button>

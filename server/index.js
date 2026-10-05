@@ -44,6 +44,8 @@ const SYNC_CONFIG_KEYS = [
   "studentFieldMap",
   "userFetchUrl",
   "userFetchMethod",
+  "userNewFetchUrl",
+  "userNewFetchMethod",
   "autoBackup",
   "backupRetainDays",
   "backupIntervalHours",
@@ -171,21 +173,21 @@ function createApp() {
 
   app.get("/api/devices/:id/users/new", async (req, res) => {
     const device = (store.getConfig().devices || []).find((d) => d.id === req.params.id);
-    if (!device) return res.status(404).json({ error: "Device not found" });
+    if (!device) return res.status(404).json({ ok: false, count: 0, users: [], message: "Device not found" });
     try {
       res.json(await checkNewUsers(device.id));
     } catch (err) {
-      res.status(500).json({ ok: false, message: err.message });
+      res.status(500).json({ ok: false, count: 0, users: [], newUsers: [], message: err.message });
     }
   });
 
   app.post("/api/devices/:id/users/new", async (req, res) => {
     const device = (store.getConfig().devices || []).find((d) => d.id === req.params.id);
-    if (!device) return res.status(404).json({ error: "Device not found" });
+    if (!device) return res.status(404).json({ ok: false, count: 0, users: [], newUsers: [], message: "Device not found" });
     try {
       res.json(await pushNewUsers(device.id));
     } catch (err) {
-      res.status(400).json({ ok: false, message: err.message });
+      res.status(400).json({ ok: false, count: 0, users: [], newUsers: [], message: err.message });
     }
   });
 
@@ -274,7 +276,13 @@ function createApp() {
     try {
       res.json(await fetchUsersFromApi({ push: false }));
     } catch (err) {
-      res.status(400).json({ ok: false, message: err.message, demo: demoUsersResponse() });
+      res.status(400).json({
+        ok: false,
+        count: 0,
+        users: [],
+        message: err.message,
+        demo: demoUsersResponse()
+      });
     }
   });
 
@@ -288,7 +296,13 @@ function createApp() {
         push
       }));
     } catch (err) {
-      res.status(400).json({ ok: false, message: err.message, demo: demoUsersResponse() });
+      res.status(400).json({
+        ok: false,
+        count: 0,
+        users: [],
+        message: err.message,
+        demo: demoUsersResponse()
+      });
     }
   });
 
@@ -327,7 +341,7 @@ function createApp() {
     try {
       res.json(await checkNewUsers(req.query.deviceId));
     } catch (err) {
-      res.status(400).json({ ok: false, message: err.message });
+      res.status(400).json({ ok: false, count: 0, users: [], newUsers: [], message: err.message });
     }
   });
 
@@ -336,7 +350,7 @@ function createApp() {
       const deviceId = (req.body && req.body.deviceId) || req.query.deviceId;
       res.json(await pushNewUsers(deviceId));
     } catch (err) {
-      res.status(400).json({ ok: false, message: err.message });
+      res.status(400).json({ ok: false, count: 0, users: [], newUsers: [], message: err.message });
     }
   });
 

@@ -63,6 +63,8 @@ const DEFAULT_CONFIG = {
   },
   userFetchUrl: "",
   userFetchMethod: "GET",
+  userNewFetchUrl: "",
+  userNewFetchMethod: "GET",
   autoBackup: true,
   backupRetainDays: 30,
   backupIntervalHours: 24,

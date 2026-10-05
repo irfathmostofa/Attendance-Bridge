@@ -226,6 +226,8 @@ function fillSettings() {
   form.syncUrl.value = state.config.syncUrl || "";
   form.userFetchUrl.value = state.config.userFetchUrl || "";
   form.userFetchMethod.value = state.config.userFetchMethod || "GET";
+  form.userNewFetchUrl.value = state.config.userNewFetchUrl || "";
+  form.userNewFetchMethod.value = state.config.userNewFetchMethod || "GET";
   form.studentIdField.value = map.studentId || "studentId";
   form.studentNameField.value = map.name || "name";
   form.studentCardField.value = map.cardNo || "cardNo";
@@ -522,6 +524,8 @@ document.getElementById("settingsForm").addEventListener("submit", async (e) => 
       syncUrl: data.syncUrl,
       userFetchUrl: data.userFetchUrl || "",
       userFetchMethod: data.userFetchMethod || "GET",
+      userNewFetchUrl: data.userNewFetchUrl || "",
+      userNewFetchMethod: data.userNewFetchMethod || "GET",
       fieldMap: readFieldMap(),
       extraFields,
       studentFieldMap: {
