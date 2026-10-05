@@ -23,7 +23,7 @@ function sameCard(a, b) {
 }
 
 function userKey(student) {
-  return String((student && (student.studentId || student.userId)) || "").trim();
+  return String((student && (student.userId || student.studentId || student.empID)) || "").trim();
 }
 
 function findDuplicate(list, student) {
@@ -31,7 +31,7 @@ function findDuplicate(list, student) {
   const card = student && student.cardNo;
   return (list || []).find((row) => {
     if (row === student) return false;
-    if (id && sameId(row.studentId || row.userId, id)) return true;
+    if (id && sameId(row.userId || row.studentId || row.empID, id)) return true;
     if (card && sameCard(row.cardNo || row.cardno, card)) return true;
     return false;
   }) || null;
@@ -46,21 +46,23 @@ function splitNewAndDuplicates(incoming, existing) {
     const fromBatch = findDuplicate(seen, student);
     if (fromExisting) {
       duplicates.push({
+        userId: student.userId || student.studentId,
         studentId: student.studentId,
         name: student.name,
         cardNo: student.cardNo,
-        reason: sameId(fromExisting.studentId || fromExisting.userId, student.studentId) ? "studentId" : "cardNo",
-        existingId: fromExisting.studentId || fromExisting.userId || ""
+        reason: sameId(fromExisting.userId || fromExisting.studentId || fromExisting.empID, student.studentId) ? "userId" : "cardNo",
+        existingId: fromExisting.userId || fromExisting.studentId || fromExisting.empID || ""
       });
       return;
     }
     if (fromBatch) {
       duplicates.push({
+        userId: student.userId || student.studentId,
         studentId: student.studentId,
         name: student.name,
         cardNo: student.cardNo,
         reason: "batch",
-        existingId: fromBatch.studentId
+        existingId: fromBatch.userId || fromBatch.studentId
       });
       return;
     }
@@ -71,7 +73,7 @@ function splitNewAndDuplicates(incoming, existing) {
 }
 
 const FIELD_ALIASES = {
-  studentId: ["studentId", "student_id", "stuId", "stu_id", "empID", "empId", "emp_id", "employeeId", "employee_id", "employeeID", "userId", "user_id", "pin", "id"],
+  studentId: ["userId", "user_id", "studentId", "student_id", "stuId", "stu_id", "empID", "empId", "emp_id", "employeeId", "employee_id", "employeeID", "pin", "id"],
   name: ["name", "empName", "studentName", "fullName", "full_name", "student_name", "employeeName", "employee_name"],
   cardNo: ["cardNo", "card_no", "cardNumber", "card_number", "rfid", "rfidNo", "rfid_no", "card", "cardno"]
 };
@@ -86,11 +88,13 @@ function pickValue(row, keys) {
 function normalizeStudent(row, fieldMap) {
   if (!row || typeof row !== "object") return null;
   const map = fieldMap || store.getConfig().studentFieldMap || {};
-  const studentId = pickValue(row, [map.studentId, ...FIELD_ALIASES.studentId].filter(Boolean));
-  if (!studentId) return null;
+  const userId = pickValue(row, [map.studentId, map.userId, ...FIELD_ALIASES.studentId].filter(Boolean));
+  if (!userId) return null;
+  const id = userId.slice(0, 9);
   return {
-    studentId: studentId.slice(0, 9),
-    name: pickValue(row, [map.name, ...FIELD_ALIASES.name].filter(Boolean)) || studentId,
+    userId: id,
+    studentId: id,
+    name: pickValue(row, [map.name, ...FIELD_ALIASES.name].filter(Boolean)) || id,
     cardNo: pickValue(row, [map.cardNo, ...FIELD_ALIASES.cardNo].filter(Boolean)),
     password: row.password != null ? String(row.password) : "",
     updatedAt: new Date().toISOString(),
@@ -123,10 +127,9 @@ function normalizeStudents(body, fieldMap) {
 }
 
 function publicUser(row) {
-  const id = row.studentId || row.empID || row.empId || row.userId || "";
+  const id = row.userId || row.studentId || row.empID || row.empId || "";
   return {
-    studentId: id,
-    empID: id,
+    userId: id,
     name: row.name || "",
     cardNo: row.cardNo || ""
   };
@@ -144,11 +147,11 @@ function usersContract(users, extra) {
 
 function demoUsersResponse() {
   return usersContract([
-    { studentId: "1001", name: "John Doe", cardNo: "12345678" },
-    { studentId: "1002", name: "Jane Smith", cardNo: "87654321" }
+    { userId: "1001", name: "John Doe", cardNo: "12345678" },
+    { userId: "1002", name: "Jane Smith", cardNo: "87654321" }
   ], {
     demo: true,
-    message: "Required bridge format. User id can be studentId or empID. Extra keys and aliases (employeeId, rfid, card_no) are accepted and mapped."
+    message: "Required bridge format. Use userId (student or employee id maps to userId). Aliases such as studentId, empID, rfid, card_no are accepted."
   });
 }
 
@@ -189,7 +192,7 @@ async function fetchUsersFromApi(options) {
   const users = normalizeStudents(res.data, fieldMap);
   const contract = usersContract(users, { source: url });
   if (!users.length) {
-    contract.message = "API responded but no users were found. Required format: { ok: true, count: N, users: [{ studentId or empID, name, cardNo }] }";
+    contract.message = "API responded but no users were found. Required format: { ok: true, count: N, users: [{ userId, name, cardNo }] }";
   }
   return {
     ...contract,
@@ -215,7 +218,7 @@ async function ingestStudents(body, options) {
   const fieldMap = (options && options.fieldMap) || store.getConfig().studentFieldMap;
   const students = normalizeStudents(body, fieldMap);
   if (!students.length) {
-    throw new Error("No users found. Send studentId or empID (or mapped field) and optional name, cardNo.");
+    throw new Error("No users found. Send userId (studentId or empID also accepted) and optional name, cardNo.");
   }
   const stored = store.getStudents();
   const split = splitNewAndDuplicates(students, stored);
@@ -263,6 +266,7 @@ function deviceUserList(listed) {
 
 function mapDeviceAsStudent(user) {
   return {
+    userId: String(user.userId || user.uid || "").trim(),
     studentId: String(user.userId || user.uid || "").trim(),
     name: user.name || "",
     cardNo: user.cardNo || user.cardno || ""
@@ -352,7 +356,7 @@ async function checkNewUsers(deviceId) {
         ? { message: fetchMessage }
         : fetchUrl
           ? {}
-          : { message: "Set Get Users / Get New Users API URL in Settings. Admin API must return { ok, count, users: [{ studentId or empID, name, cardNo }] }." })
+          : { message: "Set Get Users / Get New Users API URL in Settings. Admin API must return { ok, count, users: [{ userId, name, cardNo }] }." })
     });
   }
 
@@ -404,7 +408,7 @@ async function checkNewUsers(deviceId) {
   }
   const pool = fetchedUsers.length ? fetchedUsers : stored;
   const newUsers = results.length === 1 ? results[0].newUsers : pool.filter((student) => {
-    return results.some((row) => (row.newUsers || []).some((u) => u.studentId === student.studentId));
+    return results.some((row) => (row.newUsers || []).some((u) => (u.userId || u.studentId) === (student.userId || student.studentId)));
   });
   const duplicates = results.flatMap((row) => (row.duplicates || []).map((dup) => ({ ...dup, deviceId: row.deviceId })));
   return newUsersContract(newUsers, {

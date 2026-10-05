@@ -57,7 +57,7 @@ const DEFAULT_CONFIG = {
   extraFields: {},
   discoveredFields: ["empID", "empName", "date", "inTime", "outTime", "total_time"],
   studentFieldMap: {
-    studentId: "studentId",
+    studentId: "userId",
     name: "name",
     cardNo: "cardNo"
   },

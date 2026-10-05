@@ -185,7 +185,7 @@ function renderStudents() {
   const body = document.getElementById("studentTable");
   body.innerHTML = state.students.map((s) => `
     <tr>
-      <td>${s.studentId || ""}</td>
+      <td>${s.userId || s.studentId || ""}</td>
       <td>${s.name || ""}</td>
       <td>${s.cardNo || ""}</td>
       <td>${s.updatedAt || ""}</td>
@@ -228,7 +228,7 @@ function fillSettings() {
   form.userFetchMethod.value = state.config.userFetchMethod || "GET";
   form.userNewFetchUrl.value = state.config.userNewFetchUrl || "";
   form.userNewFetchMethod.value = state.config.userNewFetchMethod || "GET";
-  form.studentIdField.value = map.studentId || "studentId";
+  form.studentIdField.value = map.studentId || "userId";
   form.studentNameField.value = map.name || "name";
   form.studentCardField.value = map.cardNo || "cardNo";
   form.extraFields.value = JSON.stringify(state.config.extraFields || {}, null, 2);
@@ -529,7 +529,7 @@ document.getElementById("settingsForm").addEventListener("submit", async (e) => 
       fieldMap: readFieldMap(),
       extraFields,
       studentFieldMap: {
-        studentId: data.studentIdField || "studentId",
+        studentId: data.studentIdField || "userId",
         name: data.studentNameField || "name",
         cardNo: data.studentCardField || "cardNo"
       }
